@@ -1,0 +1,606 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>bookreg — документация</title><style>
+:root{--fg:#1a1a1a;--dim:#8a8a8a;--acc:#b06000;--line:#e6e2da;--bg:#fffdfa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+ font:16px/1.68 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.wrap{display:flex;align-items:flex-start;max-width:74rem;margin:0 auto}
+
+nav{position:sticky;top:0;flex:0 0 17rem;max-height:100vh;overflow:auto;
+ padding:2.5rem 1rem 3rem 1.5rem;font-size:.86rem;line-height:1.5}
+nav .t{font-weight:700;font-size:.95rem;margin-bottom:1rem}
+nav a{display:block;color:#555;text-decoration:none;padding:.24rem 0}
+nav a:hover{color:var(--acc)}
+nav a.sub{padding-left:1rem;font-size:.82rem;color:#777}
+
+main{flex:1;min-width:0;padding:2.5rem 2rem 8rem;max-width:52rem}
+h1{font-size:1.9rem;line-height:1.25;margin:0 0 .4rem;letter-spacing:-.01em}
+h1+p{color:#555;margin-top:0}
+h2{font-size:1.28rem;margin:3.2rem 0 1rem;padding-top:1.2rem;
+ border-top:1px solid var(--line);scroll-margin-top:1rem}
+h3{font-size:1.02rem;margin:2rem 0 .6rem;scroll-margin-top:1rem}
+h2:first-of-type{border-top:0;padding-top:0}
+p,ul,ol{margin:0 0 1rem}
+li{margin:.2rem 0}
+a{color:var(--acc)}
+hr{display:none}
+
+code{font:.87em ui-monospace,SFMono-Regular,Menlo,monospace;
+ background:#f1ece3;padding:.1em .34em;border-radius:4px}
+pre{background:#f7f4ee;border:1px solid var(--line);border-radius:8px;
+ padding:.85rem 1rem;overflow:auto;margin:0 0 1.2rem}
+pre code{background:0;padding:0;font-size:.83rem;line-height:1.55}
+
+table{border-collapse:collapse;width:100%;margin:0 0 1.4rem;font-size:.9rem}
+th,td{text-align:left;padding:.5rem .7rem;border-bottom:1px solid var(--line);
+ vertical-align:top}
+th{font-weight:600;background:#f7f4ee;white-space:nowrap}
+td:first-child code,th:first-child{white-space:nowrap}
+
+blockquote{margin:0 0 1.2rem;padding:.1rem 0 .1rem 1rem;
+ border-left:3px solid #ddd;color:#444}
+strong{font-weight:600}
+
+@media(max-width:900px){
+  nav{display:none}
+  main{padding:1.6rem 1.2rem 6rem}
+  table{display:block;overflow-x:auto}
+}
+</style><div class="wrap"><nav><div class="t">bookreg — документация</div><a href="#1-установка" class="">1. Установка</a><a href="#2-быстрый-старт" class="">2. Быстрый старт</a><a href="#3-команды" class="">3. Команды</a><a href="#build-собрать-реестр-из-книги" class="sub">build — собрать реестр из книги</a><a href="#check-проверить-качество-разбора" class="sub">check — проверить качество разбора</a><a href="#freeze-заморозить-нумерацию" class="sub">freeze — заморозить нумерацию</a><a href="#verify-что-съехало-после-правки" class="sub">verify — что съехало после правки</a><a href="#rebuild-пересобрать-все-книги-папки" class="sub">rebuild — пересобрать все книги папки</a><a href="#search-поиск-цитаты-из-терминала" class="sub">search — поиск цитаты из терминала</a><a href="#4-нумерация" class="">4. Нумерация</a><a href="#якоря" class="sub">Якоря</a><a href="#заморозка" class="sub">Заморозка</a><a href="#5-читалка" class="">5. Читалка</a><a href="#панель-при-выделении" class="sub">Панель при выделении</a><a href="#клавиши" class="sub">Клавиши</a><a href="#поиск-по-тексту" class="sub">Поиск по тексту</a><a href="#поиск-по-номеру" class="sub">Поиск по номеру</a><a href="#прочее" class="sub">Прочее</a><a href="#оговорка-про-file" class="sub">Оговорка про file://</a><a href="#6-выходные-файлы" class="">6. Выходные файлы</a><a href="#ltidgtjson-реестр" class="sub">&lt;id&gt;.json — реестр</a><a href="#ltidgthtml-читалка" class="sub">&lt;id&gt;.html — читалка</a><a href="#indexhtml-список-книг" class="sub">index.html — список книг</a><a href="#ltidgttxt-плоский-список" class="sub">&lt;id&gt;.txt — плоский список</a><a href="#ltidgtlockjson-замороженная-нумерация" class="sub">&lt;id&gt;.lock.json — замороженная нумерация</a><a href="#7-проверки-check" class="">7. Проверки check</a><a href="#ошибки-чинить-обязательно" class="sub">Ошибки — чинить обязательно</a><a href="#предупреждения-посмотреть-глазами" class="sub">Предупреждения — посмотреть глазами</a><a href="#справочно" class="sub">Справочно</a><a href="#как-читать-noend-и-lowstart" class="sub">Как читать noend и lowstart</a><a href="#8-форматы-книг" class="">8. Форматы книг</a><a href="#9-публикация-на-github-pages" class="">9. Публикация на GitHub Pages</a><a href="#разложить-репозиторий" class="sub">Разложить репозиторий</a><a href="#включить" class="sub">Включить</a><a href="#что-стоит-знать" class="sub">Что стоит знать</a><a href="#обновление" class="sub">Обновление</a><a href="#10-известные-ограничения" class="">10. Известные ограничения</a></nav><main><h1 id="bookreg-документация">bookreg — документация</h1>
+<p>Инструмент читательского клуба. Разбирает книгу на главы, абзацы и предложения,
+присваивает каждому устойчивый номер и собирает читалку, в которой выделение
+мышкой превращается в готовую строку заметки со ссылкой на фрагмент.</p>
+<hr />
+<h2 id="1-установка">1. Установка</h2>
+<pre><code class="language-bash">pip install lxml razdel pymorphy3 pymorphy3-dicts-ru
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>пакет</th>
+<th>зачем</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lxml</code></td>
+<td>разбор XML и HTML</td>
+</tr>
+<tr>
+<td><code>razdel</code></td>
+<td>деление на предложения по-русски: держит «т. е.», «и т. д.», инициалы, «1848 г.»</td>
+</tr>
+<tr>
+<td><code>pymorphy3</code></td>
+<td>начальные формы слов для поиска из терминала и для панели</td>
+</tr>
+</tbody>
+</table>
+<p>Скрипт — один файл, <code>bookreg.py</code>. Ничего больше устанавливать не нужно.</p>
+<hr />
+<h2 id="2-быстрый-старт">2. Быстрый старт</h2>
+<pre><code class="language-bash">python3 bookreg.py build &quot;books/Капитал.fb2&quot; --id kapital -o books
+#   ↳ смотрим список глав: совпадает ли со структурой книги
+#   ↳ разбираем предупреждения
+#   ↳ листаем books/kapital.txt по диагонали
+
+python3 bookreg.py freeze books/kapital.json
+#   ↳ выкладываем kapital.html, объявляем нумерацию действующей
+</code></pre>
+<p>Полчаса на книгу, из них двадцать минут — глазами. Эту часть автоматизировать
+нельзя: цена ошибки — молча сломанные ссылки у всех участников.</p>
+<hr />
+<h2 id="3-команды">3. Команды</h2>
+<h3 id="build-собрать-реестр-из-книги"><code>build</code> — собрать реестр из книги</h3>
+<pre><code class="language-bash">python3 bookreg.py build ФАЙЛ [--id ИМЯ] [-o ПАПКА] [--no-lemma]
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>ключ</th>
+<th>по умолчанию</th>
+<th>смысл</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--id</code></td>
+<td>имя файла в нижнем регистре</td>
+<td>короткое имя книги: определяет имена выходных файлов</td>
+</tr>
+<tr>
+<td><code>-o</code>, <code>--outdir</code></td>
+<td><code>.</code></td>
+<td>куда складывать результат</td>
+</tr>
+<tr>
+<td><code>--no-lemma</code></td>
+<td>выключено</td>
+<td>пропустить лемматизацию: сборка заметно быстрее, поиск хуже держит падежи</td>
+</tr>
+</tbody>
+</table>
+<p>Форматы: <code>.fb2</code>, <code>.epub</code>, <code>.html</code>, <code>.htm</code>, <code>.xhtml</code>, <code>.txt</code>.</p>
+<p>Печатает сводку, дерево глав и отчёт <code>check</code>. Возвращает код 1, если есть ошибки.</p>
+<p>Исходник книги стоит класть в ту же папку, что и реестры, — тогда заработает
+<code>rebuild</code>.</p>
+<h3 id="check-проверить-качество-разбора"><code>check</code> — проверить качество разбора</h3>
+<pre><code class="language-bash">python3 bookreg.py check books/kapital.json
+</code></pre>
+<p>Тот же отчёт, что печатает <code>build</code>, но по уже собранному реестру.
+Код возврата 1 при наличии ошибок — годится для скриптов.</p>
+<h3 id="freeze-заморозить-нумерацию"><code>freeze</code> — заморозить нумерацию</h3>
+<pre><code class="language-bash">python3 bookreg.py freeze books/kapital.json
+</code></pre>
+<p>Пишет <code>kapital.lock.json</code>: контрольную сумму текста и снимок всех якорей.
+<strong>Откажется работать, пока в отчёте есть ошибки.</strong></p>
+<p>Делается один раз, перед раздачей файла участникам.</p>
+<h3 id="verify-что-съехало-после-правки"><code>verify</code> — что съехало после правки</h3>
+<pre><code class="language-bash">python3 bookreg.py verify books/kapital.json
+</code></pre>
+<p>Сравнивает текущий реестр с замороженным:</p>
+<pre><code>! текст изменился с момента заморозки
+
+  исчезли якоря:      60
+  появились новые:    59
+  номер стал другим:  112   ← ЭТО ОПАСНО
+
+  Эти ссылки в заметках теперь указывают не туда:
+    1.2.1        было «свободный и раб патриций и плебей…»
+                 стало → теперь 1.1.1
+</code></pre>
+<p>Показывает, куда уехал каждый текст, — по этому списку заметки чинятся заменой.
+Код возврата 1, если есть сдвиги.</p>
+<h3 id="rebuild-пересобрать-все-книги-папки"><code>rebuild</code> — пересобрать все книги папки</h3>
+<pre><code class="language-bash">python3 bookreg.py rebuild books
+</code></pre>
+<p>Проходит по всем реестрам папки, берёт исходник и id из самого реестра
+(<code>book.source_file</code>, <code>book.id</code>), пересобирает <code>.json</code>, <code>.html</code>, <code>.txt</code>.
+Для каждой книги сообщает, совпала ли нумерация, и в конце прогоняет <code>verify</code>
+по всем замороженным.</p>
+<pre><code>✓ manifest     абз.  218  предл.   454  нумерация та же
+✓ state        абз.  467  предл.  1201  нумерация та же
+</code></pre>
+<p>Нужен после правки читалки: CSS и JS живут внутри <code>bookreg.py</code> и впечатываются
+в каждый HTML, поэтому улучшение доходит до старых книг только пересборкой.
+Разбор при этом не менялся — значит нумерация обязана остаться прежней, и
+<code>rebuild</code> это подтверждает одной командой.</p>
+<p>Требует, чтобы исходники лежали рядом с реестрами.</p>
+<h3 id="search-поиск-цитаты-из-терминала"><code>search</code> — поиск цитаты из терминала</h3>
+<pre><code class="language-bash">python3 bookreg.py search books/kapital.json &quot;нечего терять&quot; -n 5
+</code></pre>
+<p>Тот же алгоритм, что в читалке (но с настоящей лемматизацией вместо
+приближения). Годится, чтобы проверить, найдётся ли конкретная цитата.</p>
+<hr />
+<h2 id="4-нумерация">4. Нумерация</h2>
+<pre><code>глава        путь-строка: &quot;0&quot;, &quot;1&quot;, &quot;3.2&quot;
+абзац        &lt;глава&gt;.&lt;n&gt;        1.14
+предложение  &lt;глава&gt;.&lt;n&gt;.&lt;k&gt;    1.14.3
+</code></pre>
+<p><strong>Глава — путь, а не число.</strong> Если у главы есть подглавы, они получают <code>3.1</code>,
+<code>3.2</code>, <code>3.3</code>. Соответствие с нумерацией самой книги обязательно: номер должен
+работать в другом издании и произноситься вслух на встрече.</p>
+<p><strong>Глава «0»</strong> — текст до первого заголовка: преамбула, эпиграф, посвящение.</p>
+<h3 id="якоря">Якоря</h3>
+<table>
+<thead>
+<tr>
+<th>якорь</th>
+<th>что подсветит</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>#1.14</code></td>
+<td>абзац целиком</td>
+</tr>
+<tr>
+<td><code>#1.14.2</code></td>
+<td>одно предложение</td>
+</tr>
+<tr>
+<td><code>#1.14.2-4</code></td>
+<td>предложения 2–4 того же абзаца</td>
+</tr>
+<tr>
+<td><code>#4.11.3-4.12.1</code></td>
+<td>отрезок через границу абзаца или главы</td>
+</tr>
+</tbody>
+</table>
+<p>Правило: если после дефиса нет точек — это номер предложения в том же абзаце;
+если есть — полный якорь, и отрезок пойдёт через сколько угодно абзацев.</p>
+<p>Устойчивость: если конца диапазона не существует, подсветится до конца абзаца;
+концы можно указать в обратном порядке.</p>
+<h3 id="заморозка">Заморозка</h3>
+<p>Номера замораживаются <strong>до</strong> того, как кто-то начал читать, и дальше не
+меняются. Один пропущенный заголовок сдвигает все абзацы после него, и ссылки
+во всех заметках всех участников указывают не туда — молча, без ошибки.</p>
+<p><code>text_sha256</code> в реестре — контрольная сумма текста. На ней построены
+<code>freeze</code>, <code>verify</code> и отчёт <code>rebuild</code>.</p>
+<hr />
+<h2 id="5-читалка">5. Читалка</h2>
+<p>Самодостаточная HTML-страница: стили, скрипт и поисковый индекс внутри,
+внешних зависимостей нет. Открывается двойным кликом или отдаётся хостингом.</p>
+<h3 id="панель-при-выделении">Панель при выделении</h3>
+<p>Выделили предложения мышкой — над выделением всплывает панель с якорем и тремя
+кнопками. Нажатие кладёт в буфер обмена готовую строку:</p>
+<pre><code>К [1.14.1-4]
+? [1.14.3]
+М [1.14.3] «нечего терять»
+</code></pre>
+<p>Номер — гиперссылка на фрагмент. В буфер пишутся оба представления:
+<code>text/html</code> (Google Docs сохранит ссылку при вставке) и <code>text/plain</code> в виде
+markdown-ссылки. В конце стоит неразрывный пробел, чтобы курсор после вставки
+встал отдельно от скобки и можно было сразу писать.</p>
+<p>Тип стоит перед ссылкой намеренно: якоря разной длины (<code>1.14</code> и
+<code>2.3.9.2-2.3.10.1</code>), и при ссылке впереди маркеры вставали бы рваным краем.
+С типом впереди они выстраиваются по левому краю, и вкладка просматривается
+глазом сверху вниз.</p>
+<p><strong>Триггер у <code>М</code>.</strong> Если выделена часть предложения — берётся именно она, иначе
+предложение целиком, но не длиннее 8 слов с многоточием. Что уйдёт в буфер,
+написано на самой кнопке до нажатия.</p>
+<h3 id="клавиши">Клавиши</h3>
+<table>
+<thead>
+<tr>
+<th>клавиша</th>
+<th>действие</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code>, <code>К</code>, <code>k</code></td>
+<td>комментарий</td>
+</tr>
+<tr>
+<td><code>2</code>, <code>?</code>, <code>/</code></td>
+<td>вопрос</td>
+</tr>
+<tr>
+<td><code>3</code>, <code>М</code>, <code>m</code></td>
+<td>мысль</td>
+</tr>
+<tr>
+<td><code>Esc</code></td>
+<td>снять выделение</td>
+</tr>
+<tr>
+<td><code>/</code> без выделения</td>
+<td>курсор в поиск</td>
+</tr>
+</tbody>
+</table>
+<p>Обе раскладки: русская даёт <code>к</code> и <code>м</code>, латинская <code>k</code> и <code>m</code>, цифры работают
+всегда.</p>
+<h3 id="поиск-по-тексту">Поиск по тексту</h3>
+<p>Набрали три и более знака — список совпадений; стрелки и Enter или клик.
+Выбор <strong>выделяет</strong> найденное в тексте, то есть дальше всё так же, как после
+выделения мышкой. Поиск — способ сделать выделение, а не отдельный режим.</p>
+<p>Ищет не подстрокой: слова запроса находятся по порядку с допуском пропусков,
+результаты ранжируются по плотности.</p>
+<pre><code>«Пролетариям нечего терять»   → «Пролетариям нечего в ней терять кроме своих цепей»
+«пролетариев всех стран»      → «ПРОЛЕТАРИИ ВСЕХ СТРАН, СОЕДИНЯЙТЕСЬ!»
+</code></pre>
+<p>Первое работает благодаря пропускам, второе — благодаря приближению морфологии:
+<code>pymorphy</code> в браузере не запустить, вместо него слова сравниваются по первым
+пяти буквам. Падежи это ловит («государства» ↔ «государство»,
+«избирательного» ↔ «избирательное»).</p>
+<p><strong>Граница возможностей.</strong> «буржуазия <strong>играла</strong>» не найдёт «буржуазия
+<strong>сыграла</strong>»: это разные слова, а не формы одного. Поэтому «ничего не найдено»
+показывается явно — иначе человек решит, что цитаты в книге нет.</p>
+<h3 id="поиск-по-номеру">Поиск по номеру</h3>
+<p>В то же поле можно ввести якорь — распознаётся автоматически:</p>
+<pre><code>1.14              абзац целиком плюс его предложения списком
+1.14.3            одно предложение
+1.14.2-4          диапазон
+4.11.3-4.12.1     через границу абзаца
+1 . 14            пробелы и запятые игнорируются
+</code></pre>
+<p>Понимается и целая ссылка: из <code>https://…/state.html#2.3.9.2</code> берётся часть
+после <code>#</code>, хвост <code>?q=…</code> отбрасывается. Полезно, когда участник прислал ссылку
+и её надо открыть у себя.</p>
+<p>Выбор так же выделяет фрагмент, поэтому по номеру можно не только найти, но и
+сразу сделать заметку. Несуществующий номер даёт «Нет такого номера».</p>
+<h3 id="прочее">Прочее</h3>
+<ul>
+<li>сноски: надстрочное число, наведение показывает текст, клик уводит в список
+  «Примечания», оттуда стрелка возвращает на место;</li>
+<li>у маркера сноски <code>user-select: none</code> — при копировании мышкой в буфер он
+  не попадёт;</li>
+<li>блочные цитаты отбиты полосой слева (у Ленина это 16% текста);</li>
+<li>номера абзацев на полях, при подсветке диапазона выделяются цветом;</li>
+<li>подписан <code>hashchange</code>: правка адреса в открытой вкладке работает без
+  перезагрузки.</li>
+</ul>
+<h3 id="оговорка-про-file">Оговорка про <code>file://</code></h3>
+<p><code>navigator.clipboard.write</code> требует https или localhost. При открытии файла
+прямо с диска работает запасной путь через <code>execCommand('copy')</code> — он тоже
+кладёт размеченный фрагмент, но это старый API и вести себя может иначе.
+На GitHub Pages отдаётся https, так что там работает основной путь; проверять
+копирование лучше уже на выложенной версии.</p>
+<hr />
+<h2 id="6-выходные-файлы">6. Выходные файлы</h2>
+<h3 id="ltidgtjson-реестр"><code>&lt;id&gt;.json</code> — реестр</h3>
+<p>Основной артефакт: на нём строится читалка и всё остальное.</p>
+<pre><code class="language-jsonc">{
+  &quot;book&quot;: {
+    &quot;id&quot;: &quot;state&quot;,
+    &quot;title&quot;: &quot;Государство и революция&quot;,
+    &quot;authors&quot;: [&quot;Владимир Ильич Ленин&quot;],
+    &quot;source_file&quot;: &quot;Государство и революция.fb2&quot;,
+    &quot;source_format&quot;: &quot;fb2&quot;,
+    &quot;text_sha256&quot;: &quot;eb8e70e5740fc90f…&quot;      // контрольная сумма текста
+  },
+  &quot;chapters&quot;: [
+    { &quot;id&quot;: &quot;2.1&quot;, &quot;title&quot;: &quot;1. Государство — продукт…&quot;,
+      &quot;level&quot;: 2,
+      &quot;refs&quot;: [] }                          // сноски на самом заголовке
+  ],
+  &quot;paragraphs&quot;: [
+    { &quot;id&quot;: &quot;2.1.4&quot;, &quot;chapter&quot;: &quot;2.1&quot;, &quot;n&quot;: 4,
+      &quot;text&quot;: &quot;…&quot;,
+      &quot;sentences&quot;: [&quot;2.1.4.1&quot;, &quot;2.1.4.2&quot;],
+      &quot;cite&quot;: true }                        // абзац из блочной цитаты
+  ],
+  &quot;sentences&quot;: [
+    { &quot;id&quot;: &quot;2.1.4.1&quot;, &quot;para&quot;: &quot;2.1.4&quot;, &quot;chapter&quot;: &quot;2.1&quot;, &quot;n&quot;: 1,
+      &quot;text&quot;: &quot;…&quot;,                          // как в книге, чистый
+      &quot;norm&quot;: &quot;…&quot;,                          // для поиска
+      &quot;lemma&quot;: &quot;…&quot;,                         // начальные формы слов
+      &quot;start&quot;: 0, &quot;stop&quot;: 87,               // смещения внутри абзаца
+      &quot;notes&quot;: [ { &quot;pos&quot;: 24, &quot;note&quot;: &quot;n_5&quot; } ] }
+  ],
+  &quot;marks&quot;: [ { &quot;chapter&quot;: &quot;3.1&quot;, &quot;after&quot;: 7, &quot;text&quot;: &quot;а) Феодальный социализм&quot; } ],
+  &quot;notes&quot;: {
+    &quot;n_5&quot;: { &quot;num&quot;: &quot;5&quot;, &quot;text&quot;: &quot;…&quot;,
+             &quot;refs&quot;: [ { &quot;pos&quot;: 132, &quot;note&quot;: &quot;n_35&quot; } ] }
+  }
+}
+</code></pre>
+<p>Про поля, которые легко понять неверно:</p>
+<ul>
+<li><strong><code>text</code> чистый.</strong> Маркеры сносок <code>[4]</code> из него вырезаны — иначе они попадали
+  бы в цитату и ломали поиск. Позиция запомнена в <code>notes</code>.</li>
+<li><strong><code>norm</code></strong> — нижний регистр, <code>ё</code>→<code>е</code>, без кавычек и пунктуации; тире между
+  словами выброшено, дефис внутри слова сохранён.</li>
+<li><strong><code>lemma</code></strong> — то же, но каждое слово в начальной форме. По нему идёт поиск
+  команды <code>search</code>. Поля нет, если собирали с <code>--no-lemma</code>.</li>
+<li><strong><code>cite: true</code></strong> — абзац пришёл из блочной цитаты.</li>
+<li><strong><code>marks</code></strong> — подзаголовки внутри главы (<code>а)</code>, <code>b)</code>, <code>с)</code>). Своего уровня
+  нумерации не получают, показываются в читалке. <code>after</code> — номер абзаца, после
+  которого стоит подзаголовок.</li>
+<li><strong><code>notes[*].refs</code></strong> — сноски внутри сносок. Бывают: у Энгельса примечание
+  1888 года ссылается на семь дальнейших.</li>
+</ul>
+<h3 id="ltidgthtml-читалка"><code>&lt;id&gt;.html</code> — читалка</h3>
+<p>Раздаётся участникам. Всё описано в разделе 5.</p>
+<h3 id="indexhtml-список-книг"><code>index.html</code> — список книг</h3>
+<p>Собирается командой <code>rebuild</code> в папке над <code>books/</code>. Точка входа для участников:
+карточки книг со счётчиками и отметкой, заморожена ли нумерация.</p>
+<h3 id="ltidgttxt-плоский-список"><code>&lt;id&gt;.txt</code> — плоский список</h3>
+<p><code>якорь&lt;TAB&gt;текст</code>, по строке на предложение. Для просмотра глазами перед
+заморозкой. Больше нигде не используется.</p>
+<h3 id="ltidgtlockjson-замороженная-нумерация"><code>&lt;id&gt;.lock.json</code> — замороженная нумерация</h3>
+<p>Контрольная сумма текста и снимок якорей. <strong>Держать в git</strong> — это единственная
+защита от незаметного сдвига нумерации.</p>
+<hr />
+<h2 id="7-проверки-check">7. Проверки <code>check</code></h2>
+<h3 id="ошибки-чинить-обязательно">Ошибки — чинить обязательно</h3>
+<table>
+<thead>
+<tr>
+<th>код</th>
+<th>что значит</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>empty</code></td>
+<td>абзацев не найдено вообще: формат не тот или разметка непонятна</td>
+</tr>
+<tr>
+<td><code>junk</code></td>
+<td>реклама электронной библиотеки попала в текст</td>
+</tr>
+<tr>
+<td><code>notemark</code></td>
+<td>маркеры сносок <code>[4]</code> остались в тексте — попадут в цитату и сломают поиск</td>
+</tr>
+<tr>
+<td><code>encoding</code></td>
+<td>битая кодировка или неразобранные HTML-сущности</td>
+</tr>
+<tr>
+<td><code>note_dangling</code></td>
+<td>ссылка на несуществующую сноску</td>
+</tr>
+</tbody>
+</table>
+<h3 id="предупреждения-посмотреть-глазами">Предупреждения — посмотреть глазами</h3>
+<table>
+<thead>
+<tr>
+<th>код</th>
+<th>что значит</th>
+<th>обычная причина</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>headings</code></td>
+<td>много коротких абзацев без точки</td>
+<td>заголовки не опознались как главы — <strong>проверять первым делом</strong></td>
+</tr>
+<tr>
+<td><code>nochapters</code></td>
+<td>больше 30% текста вне глав</td>
+<td>заголовки не распознались вовсе</td>
+</tr>
+<tr>
+<td><code>lowstart</code></td>
+<td>предложение начинается со строчной</td>
+<td>абзац продолжает предыдущий после блочной цитаты</td>
+</tr>
+<tr>
+<td><code>noend</code></td>
+<td>длинное предложение без знака в конце</td>
+<td>фраза автора продолжается блочной цитатой</td>
+</tr>
+<tr>
+<td><code>toolong</code></td>
+<td>предложение вдвое длиннее 95-го процентиля</td>
+<td>пропущен разрыв, обычно из-за нестандартной пунктуации</td>
+</tr>
+<tr>
+<td><code>hyphen</code></td>
+<td>«слово- вое»</td>
+<td>неснятый перенос, обычно из PDF</td>
+</tr>
+<tr>
+<td><code>dup</code></td>
+<td>одинаковые предложения</td>
+<td>автор повторяется либо кусок задвоился при разборе</td>
+</tr>
+<tr>
+<td><code>emptychap</code></td>
+<td>глава без абзацев</td>
+<td>нормально для главы-контейнера с подглавами</td>
+</tr>
+<tr>
+<td><code>note_orphan</code></td>
+<td>сноска, на которую никто не ссылается</td>
+<td>в читалке она не появится</td>
+</tr>
+</tbody>
+</table>
+<h3 id="справочно">Справочно</h3>
+<table>
+<thead>
+<tr>
+<th>код</th>
+<th>что значит</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ambiguous</code></td>
+<td>у разных предложений одинаковые первые 5 слов: в поиске придётся выбирать из нескольких. Не ошибка</td>
+</tr>
+</tbody>
+</table>
+<h3 id="как-читать-noend-и-lowstart">Как читать <code>noend</code> и <code>lowstart</code></h3>
+<p>Пример из «Государства и революции»:</p>
+<pre><code>! [noend] Длинное предложение без знака в конце: 6
+      2.3.9.2
+</code></pre>
+<p>Смотрим <code>2.3.9.2</code>:</p>
+<blockquote>
+<p>Всеобщее избирательное право, говорит он, явно учитывая долгий опыт немецкой
+социал-демократии, <strong>есть</strong></p>
+</blockquote>
+<p>Дальше в книге идёт блочная цитата. Ленин вплетает чужие слова в собственную
+фразу грамматически. Разбор верен, чинить нечего. <code>lowstart</code> — обратная
+сторона: абзац, подхватывающий прерванную фразу.</p>
+<p><strong>Но следствие знать надо.</strong> Такая фраза разорвана между абзацами, поэтому
+сослаться на неё целиком можно только диапазоном (<code>2.3.9.2-2.3.10.1</code>), а поиск
+по цитате, пересекающей границу абзаца, её не найдёт — он работает в пределах
+предложения.</p>
+<p>Правило: единицы таких предупреждений — почти наверняка блочные цитаты, всё в
+порядке. Десятки — разбор разваливает обычный текст, надо смотреть.</p>
+<hr />
+<h2 id="8-форматы-книг">8. Форматы книг</h2>
+<table>
+<thead>
+<tr>
+<th>формат</th>
+<th>пригодность</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>FB2</strong></td>
+<td>лучший. Структура глав задана вложенностью <code>&lt;section&gt;</code>, сноски отдельным <code>&lt;body name="notes"&gt;</code>, маркеры сносок помечены явно</td>
+</tr>
+<tr>
+<td><strong>EPUB</strong></td>
+<td>хорошо. Порядок чтения берётся из spine</td>
+</tr>
+<tr>
+<td><strong>HTML</strong></td>
+<td>запасной. Уровни <code>&lt;h2&gt;</code>/<code>&lt;h3&gt;</code> — типографское решение автора файла, опираться нельзя. <strong>Обязателен просмотр списка глав</strong></td>
+</tr>
+<tr>
+<td><strong>TXT</strong></td>
+<td>грубо. Абзацы по пустой строке, заголовки угадываются по длине</td>
+</tr>
+<tr>
+<td><strong>PDF</strong></td>
+<td>не поддерживается. Конвертировать заранее, например Calibre</td>
+</tr>
+<tr>
+<td><strong>скан</strong></td>
+<td>сначала OCR; качество разбиения на предложения заметно падает</td>
+</tr>
+</tbody>
+</table>
+<p>Кодировка HTML определяется сама: объявленный charset, затем utf-8, cp1251,
+koi8-r, с отбраковкой заведомо неверного результата.</p>
+<hr />
+<h2 id="9-публикация-на-github-pages">9. Публикация на GitHub Pages</h2>
+<p>Ссылка в заметке ведёт на фрагмент только тогда, когда читалка доступна по
+общему адресу. Базовый адрес нигде не прописан — читалка берёт его из
+<code>location.href</code>, так что настраивать ничего не нужно: где выложили, оттуда и
+работает.</p>
+<h3 id="разложить-репозиторий">Разложить репозиторий</h3>
+<pre><code>index.html                 список книг, собирается rebuild
+docs.html                  эта документация, собирается docs2html.py
+.nojekyll                  пустой файл
+books/
+  manifest.html            читалки
+  state.html
+  …                        реестры, .lock.json, .txt, исходники .fb2
+bookreg.py  docs2html.py  DOCS.md  CLAUDE.md
+</code></pre>
+<p><code>.nojekyll</code> нужен, чтобы GitHub Pages отдавал файлы как есть, без обработки
+Jekyll. Без него всё, что начинается с подчёркивания, молча выпадает.</p>
+<h3 id="включить">Включить</h3>
+<p>Settings → Pages → Source: Deploy from a branch, ветка <code>main</code>, папка <code>/ (root)</code>.
+Через минуту сайт доступен:</p>
+<pre><code>https://ПОЛЬЗОВАТЕЛЬ.github.io/РЕПОЗИТОРИЙ/
+https://ПОЛЬЗОВАТЕЛЬ.github.io/РЕПОЗИТОРИЙ/books/state.html#2.3.9.2
+</code></pre>
+<p>Дальше обычный <code>git push</code> = обновлённый сайт.</p>
+<h3 id="что-стоит-знать">Что стоит знать</h3>
+<ul>
+<li><strong>На бесплатном тарифе Pages работают только из публичного репозитория, и
+  сайт публичный.</strong> Приватная публикация — только на GitHub Enterprise Cloud;
+  на Pro закрыть можно репозиторий, но не сайт.</li>
+<li>Отсюда практическое: тексты, которые нельзя выкладывать открыто, на GitHub
+  Pages класть не стоит. Маркс, Энгельс и Ленин — общественное достояние, с
+  ними вопросов нет; для более поздних книг понадобится закрытый хостинг.</li>
+<li>Кириллица в именах файлов работает, но адрес получается процентно-кодированный.
+  Читалки называются латиницей (<code>state.html</code>), так что это касается только
+  исходников <code>.fb2</code>, на которые никто не ссылается.</li>
+<li>Регистр в именах на Pages значимый, в отличие от macOS и Windows: локально
+  ссылка может работать, а на сайте — нет.</li>
+</ul>
+<h3 id="обновление">Обновление</h3>
+<pre><code class="language-bash">python3 bookreg.py rebuild books      # книги + index.html
+python3 docs2html.py DOCS.md -o docs.html
+git add -A &amp;&amp; git commit -m &quot;…&quot; &amp;&amp; git push
+</code></pre>
+<h2 id="10-известные-ограничения">10. Известные ограничения</h2>
+<ul>
+<li>Поиск не пересекает границу предложения и абзаца.</li>
+<li>Разные слова с одним смыслом («играла» / «сыграла») не отождествляются.</li>
+<li>Приближение морфологии в браузере работает по первым пяти буквам: короткие
+  слова с разными корнями изредка совпадут.</li>
+<li>Подзаголовки внутри главы своего уровня нумерации не получают: якорь стал бы
+  пятизначным.</li>
+<li>Стихи внутри <code>&lt;poem&gt;</code> разбираются как обычные абзацы.</li>
+<li>Таблицы и картинки не переносятся.</li>
+<li>Реестры, собранные с <code>--no-lemma</code> и без него, лучше не смешивать в одном
+  проекте: команда <code>search</code> у первых работает хуже.</li>
+<li>Читалка целиком грузится в браузер одним файлом. «Государство и революция» —
+  около 900 КБ; для книги в несколько тысяч страниц это станет заметно.</li>
+</ul></main></div>

@@ -1,0 +1,1327 @@
+#!/usr/bin/env python3
+"""
+bookreg.py — реестр глава/абзац/предложение для книжного клуба.
+
+    pip install lxml razdel pymorphy3 pymorphy3-dicts-ru
+
+Команды:
+    build   собрать реестр из fb2 / epub / html / txt
+    check   отчёт о качестве разбора — ЗАПУСКАТЬ ВСЕГДА перед раздачей
+    freeze  заморозить нумерацию (пишет .lock рядом с реестром)
+    verify  сравнить текущий реестр с замороженным, показать сдвиги
+    search  поиск цитаты из терминала — проверить, что панель будет находить
+
+Обычный цикл на новую книгу:
+
+    python3 bookreg.py build книга.fb2 --id kapital -o ./books
+    python3 bookreg.py check ./books/kapital.json      # чинить, пока есть ошибки
+    python3 bookreg.py freeze ./books/kapital.json     # раздать участникам
+
+Позже, если пришлось что-то поправить в разборе:
+
+    python3 bookreg.py build книга.fb2 --id kapital -o ./books
+    python3 bookreg.py verify ./books/kapital.json     # что съехало и на сколько
+
+Нумерация:
+    глава        путь-строка: "0" (текст до первой главы), "1", "3.2"
+    абзац        <глава>.<n>          1.14
+    предложение  <глава>.<n>.<k>      1.14.3
+"""
+
+import argparse
+import hashlib
+import html as html_mod
+import json
+import re
+import sys
+import zipfile
+from pathlib import Path
+
+try:
+    from lxml import etree, html as lxml_html
+except ImportError:
+    sys.exit("Нужен lxml:  pip install lxml")
+try:
+    from razdel import sentenize
+except ImportError:
+    sys.exit("Нужен razdel:  pip install razdel")
+
+
+# ===========================================================================
+#  Нормализация и поиск
+# ===========================================================================
+
+DASHES = dict.fromkeys(map(ord, "\u2010\u2011\u2012\u2013\u2014\u2015\u2212"), "-")
+QUOTES = dict.fromkeys(map(ord, "«»„“”‘’\"'"), "")
+
+
+def clean(t):
+    """Чистка видимого текста: неразрывные пробелы, мягкие переносы, склейка."""
+    t = (t.replace("\xa0", " ").replace("\u00ad", "")
+          .replace("\u200b", "").replace("\ufeff", ""))
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def normalize(t):
+    """
+    Текст в форме, по которой ищется цитата.
+
+    Тире между словами выбрасывается: в разных изданиях «Европе – призрак»,
+    «Европе — призрак», а человек наберёт дефис или ничего. Дефис внутри
+    слова («какой-то») остаётся — он часть слова.
+    """
+    t = t.lower().replace("ё", "е")
+    t = t.translate(DASHES).translate(QUOTES)
+    t = re.sub(r"(?<![^\W\d_])-|-(?![^\W\d_])", " ", t)
+    t = re.sub(r"[^\w\s-]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+_morph = None
+
+
+def lemmas(t):
+    """
+    Начальные формы слов: «пролетариев всех стран» должно находить
+    «ПРОЛЕТАРИИ ВСЕХ СТРАН». Цитату набирают по памяти, и падеж почти
+    никогда не совпадает.
+    """
+    global _morph
+    if _morph is None:
+        try:
+            import pymorphy3
+        except ImportError:
+            sys.exit("Нужен pymorphy3:  pip install pymorphy3 pymorphy3-dicts-ru")
+        _morph = pymorphy3.MorphAnalyzer()
+    return " ".join(_morph.parse(w)[0].normal_form for w in t.split())
+
+
+def search(sentences, query, limit=8, field="lemma"):
+    """
+    Поиск цитаты. Не подстрокой: набирающий по памяти пропускает слова —
+    «Пролетариям нечего терять» должно находить «Пролетариям нечего в ней
+    терять». Ищем слова запроса по порядку с пропусками, ранжируем по
+    плотности: чем меньше пропущено, тем выше.
+    """
+    q = normalize(query)
+    if field == "lemma":
+        q = lemmas(q)
+    words = q.split()
+    if not words:
+        return []
+    hits = []
+    for s in sentences:
+        sw = s.get(field, s["norm"]).split()
+        i, pos = 0, []
+        for j, w in enumerate(sw):
+            if i < len(words) and w.startswith(words[i]):
+                pos.append(j)
+                i += 1
+        if i < len(words):
+            continue
+        hits.append((pos[0], (pos[-1] - pos[0] + 1) / len(words), s))
+    hits.sort(key=lambda h: (h[1], h[0]))
+    return [h[2] for h in hits[:limit]]
+
+
+# ===========================================================================
+#  Чтение форматов.  Каждый ридер отдаёт плоский список:
+#     {"kind": "chapter", "level": int, "text": str}
+#     {"kind": "para",    "text": str}
+#     {"kind": "mark",    "text": str}     подзаголовок, без нумерации
+# ===========================================================================
+
+JUNK = re.compile(
+    r"royallib|litres|литрес|флибуст|loveread|скачали книгу|приятного чтения|"
+    r"все книги автора|в других форматах|оставить отзыв|бесплатной электронной|"
+    r"версия для печати", re.I)
+
+FB2NS = "http://www.gribuser.ru/xml/fictionbook/2.0"
+
+
+NOTE_OPEN, NOTE_CLOSE = "\ue000", "\ue001"
+
+
+def _extract_refs(text):
+    """
+    Достаёт метки сносок, расставленные при обходе, и переводит их в
+    позиции в уже вычищенном тексте.
+
+    Метка ставится сентинелом \\ue000id\\ue001, а не сразу позицией:
+    clean() схлопывает пробелы и сдвигает всё, что посчитано заранее.
+    """
+    # split даёт [текст, id, текст, id, ...]
+    chunks = re.split(f"{NOTE_OPEN}(.*?){NOTE_CLOSE}", text)
+    buf, refs = "", []
+    for k, part in enumerate(chunks):
+        if k % 2 == 0:
+            buf += part
+        else:
+            refs.append({"pos": len(buf), "note": part})
+    return buf, refs
+
+
+def _fb2_text(el, keep_refs=False):
+    """
+    Текст элемента FB2. Маркер сноски <a type="note">[4]</a> из текста
+    убирается — иначе «[4]» попадёт в цитату и сломает поиск, — но место,
+    где он стоял, запоминается, чтобы читалка могла показать сноску.
+    """
+    parts = []
+
+    def walk(n):
+        if n.text:
+            parts.append(n.text)
+        for ch in n:
+            tag = etree.QName(ch).localname
+            if tag == "a" and ch.get("type") == "note":
+                nid = (ch.get("{http://www.w3.org/1999/xlink}href")
+                       or ch.get("href") or "").lstrip("#")
+                if keep_refs and nid:
+                    parts.append(f"{NOTE_OPEN}{nid}{NOTE_CLOSE}")
+            elif tag != "image":
+                walk(ch)
+            if ch.tail:
+                parts.append(ch.tail)
+
+    walk(el)
+    raw = clean("".join(parts))
+    if not keep_refs:
+        return re.sub(f"{NOTE_OPEN}.*?{NOTE_CLOSE}", "", raw)
+    return _extract_refs(raw)
+
+
+def read_fb2(path):
+    ns = {"f": FB2NS}
+    root = etree.parse(str(path)).getroot()
+    items, notes = [], {}
+
+    def local(e):
+        return etree.QName(e).localname
+
+    def section(sec, level):
+        ti = sec.find("f:title", ns)
+        if ti is not None:
+            t, refs = _fb2_text(ti, keep_refs=True)
+            items.append({"kind": "chapter", "level": level,
+                          "text": t, "refs": refs})
+        subs = sec.findall("f:section", ns)
+        if subs:
+            for s in subs:
+                section(s, level + 1)
+            return
+        for el in sec:
+            tag = local(el)
+            if tag == "title":
+                continue
+            if tag == "subtitle":
+                items.append({"kind": "mark", "text": _fb2_text(el)})
+                continue
+            if tag not in ("p", "poem", "cite", "epigraph"):
+                continue
+            # текст в cite/epigraph бывает не в <p>, а в <subtitle> или <v>
+            blocks = [el] if tag == "p" else [
+                x for x in el.iter() if local(x) in ("p", "subtitle", "v")]
+            for b in blocks:
+                t, refs = _fb2_text(b, keep_refs=True)
+                items.append({"kind": "para", "text": t, "refs": refs,
+                              "cite": tag in ("cite", "epigraph")})
+
+    body = root.find("f:body", ns)
+    for sec in body.findall("f:section", ns):
+        section(sec, 1)
+
+    for b in root.findall("f:body", ns):
+        if b.get("name") != "notes":
+            continue
+        for sec in b.iter("{%s}section" % FB2NS):
+            nid = sec.get("id")
+            if not nid:
+                continue
+            ti = sec.find("f:title", ns)
+            chunks = [_fb2_text(x, keep_refs=True) for x in sec.findall("f:p", ns)]
+            body, refs, off = "", [], 0
+            for t, rs in chunks:
+                if body:
+                    body += " "
+                    off += 1
+                for r in rs:
+                    refs.append({"pos": off + r["pos"], "note": r["note"]})
+                body += t
+                off += len(t)
+            notes[nid] = {
+                "num": _fb2_text(ti) if ti is not None else "",
+                "text": body, "refs": refs}
+
+    meta = {}
+    ti = root.find(".//f:title-info", ns)
+    if ti is not None:
+        bt = ti.find("f:book-title", ns)
+        meta["title"] = _fb2_text(bt) if bt is not None else ""
+        meta["authors"] = [
+            clean(" ".join(_fb2_text(a.find(f"f:{k}", ns))
+                           for k in ("first-name", "middle-name", "last-name")
+                           if a.find(f"f:{k}", ns) is not None))
+            for a in ti.findall("f:author", ns)]
+    return items, notes, meta
+
+
+BLOCK = {"p", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "li", "div"}
+DROP = {"script", "style", "nav", "header", "footer", "aside", "noscript",
+        "table", "form", "figcaption"}
+
+
+def _html_items(tree):
+    items = []
+    for el in tree.iter():
+        if not isinstance(el.tag, str):
+            continue
+        tag = el.tag.lower().split("}")[-1]
+        if tag in DROP:
+            el.clear()
+            continue
+        if tag not in BLOCK:
+            continue
+        # div берём только если внутри нет других блоков
+        if tag == "div" and any(
+                isinstance(c.tag, str) and c.tag.lower().split("}")[-1] in BLOCK
+                for c in el.iter() if c is not el):
+            continue
+        # сноски-ссылки [4] выкидываем
+        for a in el.iter("a"):
+            t = (a.text or "").strip()
+            if re.fullmatch(r"\[?\d{1,4}\]?", t):
+                a.text = ""
+        t = clean(el.text_content())
+        if len(t) < 2:
+            continue
+        if tag[0] == "h" and tag[1:].isdigit():
+            items.append({"kind": "chapter", "level": int(tag[1]), "text": t})
+        else:
+            items.append({"kind": "para", "text": t})
+    return items
+
+
+def decode_bytes(raw):
+    """
+    Кодировка HTML из библиотек объявлена не всегда, а бывает и cp1251.
+    Пробуем по очереди; latin-1 не пробуем никогда — он «декодирует»
+    что угодно и молча превращает русский текст в кракозябры.
+    """
+    m = re.search(rb'charset=["\']?\s*([\w-]+)', raw[:4000], re.I)
+    order = []
+    if m:
+        order.append(m.group(1).decode("ascii", "ignore"))
+    order += ["utf-8", "cp1251", "koi8-r"]
+    for enc in order:
+        try:
+            t = raw.decode(enc)
+        except (UnicodeDecodeError, LookupError):
+            continue
+        # кириллица, прочитанная как латиница, даёт много Ã/Ð/Ñ
+        if len(re.findall(r"[ÃÐÑÂ]", t)) > len(t) / 200:
+            continue
+        return t
+    return raw.decode("utf-8", "replace")
+
+
+def drop_junk(items):
+    """Реклама библиотеки. Только короткие блоки: в длинном абзаце
+    совпадение почти наверняка ложное."""
+    return [i for i in items
+            if not (len(i["text"]) < 200 and JUNK.search(i["text"]))]
+
+
+def demote_title_h1(items):
+    """
+    Единственный <h1> в начале — это название книги, а не глава.
+    Если его не убрать, все главы уезжают на уровень ниже и якорь
+    становится «1.2.14» вместо «2.14» — то есть у HTML-версии книги
+    нумерация не совпадёт с FB2-версией той же книги.
+
+    Считать «начало» надо уже после выброса рекламной шапки, иначе
+    «Спасибо, что скачали книгу» оказывается первым абзацем и <h1>
+    перестаёт быть первым.
+    """
+    items = drop_junk(items)
+    h1 = [i for i, x in enumerate(items) if x["kind"] == "chapter"
+          and x["level"] == 1]
+    first_para = next((i for i, x in enumerate(items)
+                       if x["kind"] == "para"), len(items))
+    if len(h1) == 1 and h1[0] < first_para:
+        items = items[:h1[0]] + items[h1[0] + 1:]
+        for x in items:
+            if x["kind"] == "chapter":
+                x["level"] = max(1, x["level"] - 1)
+    return items
+
+
+def read_html(path):
+    raw = Path(path).read_bytes()
+    tree = lxml_html.fromstring(decode_bytes(raw))
+    title = ""
+    t = tree.find(".//title")
+    if t is not None:
+        title = clean(t.text_content())
+    body = tree.find(".//body")
+    items = _html_items(body if body is not None else tree)
+    return demote_title_h1(items), {}, {"title": title}
+
+
+def read_epub(path):
+    """EPUB: container.xml → OPF → spine, файлы читаются в порядке чтения."""
+    items, meta = [], {}
+    with zipfile.ZipFile(path) as z:
+        cont = etree.fromstring(z.read("META-INF/container.xml"))
+        opf_path = cont.find(".//{*}rootfile").get("full-path")
+        opf = etree.fromstring(z.read(opf_path))
+        base = str(Path(opf_path).parent)
+
+        ttl = opf.find(".//{http://purl.org/dc/elements/1.1/}title")
+        meta["title"] = clean(ttl.text) if ttl is not None else ""
+        meta["authors"] = [clean(a.text) for a in opf.findall(
+            ".//{http://purl.org/dc/elements/1.1/}creator") if a.text]
+
+        ids = {it.get("id"): it.get("href")
+               for it in opf.findall(".//{*}manifest/{*}item")}
+        for ref in opf.findall(".//{*}spine/{*}itemref"):
+            href = ids.get(ref.get("idref"))
+            if not href:
+                continue
+            name = str(Path(base) / href) if base != "." else href
+            name = name.replace("\\", "/")
+            try:
+                raw = z.read(name)
+            except KeyError:
+                continue
+            try:
+                doc = lxml_html.fromstring(decode_bytes(raw))
+            except Exception:
+                continue
+            items += _html_items(doc)
+    return demote_title_h1(items), {}, meta
+
+
+def read_txt(path):
+    """Простой текст: абзацы разделены пустой строкой."""
+    raw = Path(path).read_text(encoding="utf-8", errors="replace")
+    items = []
+    for chunk in re.split(r"\n\s*\n", raw):
+        t = clean(chunk)
+        if len(t) < 2:
+            continue
+        # короткая строка без точки на конце — считаем заголовком
+        if len(t) < 90 and not re.search(r"[.!?…]$", t):
+            items.append({"kind": "chapter", "level": 1, "text": t})
+        else:
+            items.append({"kind": "para", "text": t})
+    return items, {}, {}
+
+
+READERS = {".fb2": read_fb2, ".epub": read_epub, ".html": read_html,
+           ".htm": read_html, ".xhtml": read_html, ".txt": read_txt}
+
+
+# ===========================================================================
+#  Сборка реестра
+# ===========================================================================
+
+def build(path, book_id, lemmatize=True):
+    path = Path(path)
+    reader = READERS.get(path.suffix.lower())
+    if not reader:
+        sys.exit(f"Неизвестный формат {path.suffix}. "
+                 f"Поддерживаются: {', '.join(sorted(READERS))}")
+
+    items, notes, meta = reader(path)
+    items = drop_junk(items)
+
+    reg = {"book": {"id": book_id,
+                    "title": meta.get("title", path.stem),
+                    "authors": meta.get("authors", []),
+                    "source_file": path.name,
+                    "source_format": path.suffix.lower().lstrip(".")},
+           "chapters": [], "paragraphs": [], "sentences": [],
+           "marks": [], "notes": notes}
+
+    counters, cur, n = [], "0", 0
+    reg["chapters"].append({"id": "0", "title": "", "level": 0})
+
+    for it in items:
+        if it["kind"] == "chapter":
+            lvl = it["level"]
+            # спуск на уровень выше — лишние разряды отбрасываем
+            while len(counters) > lvl:
+                counters.pop()
+            if len(counters) == lvl:
+                counters[-1] += 1          # соседняя глава того же уровня
+            else:
+                while len(counters) < lvl - 1:
+                    counters.append(1)     # пропущенный уровень (h1→h3)
+                counters.append(1)         # первая глава нового уровня
+            cur = ".".join(map(str, counters))
+            n = 0
+            reg["chapters"].append({"id": cur, "title": it["text"],
+                                    "level": lvl,
+                                    "refs": it.get("refs", [])})
+            continue
+        if it["kind"] == "mark":
+            reg["marks"].append({"chapter": cur, "after": n,
+                                 "text": it["text"]})
+            continue
+
+        n += 1
+        pid = f"{cur}.{n}"
+        sids = []
+        refs = it.get("refs", [])
+        for k, s in enumerate(sentenize(it["text"]), 1):
+            sid = f"{pid}.{k}"
+            nm = normalize(s.text)
+            rec = {"id": sid, "para": pid, "chapter": cur, "n": k,
+                   "text": s.text, "norm": nm,
+                   "start": s.start, "stop": s.stop}
+            # сноски, попавшие в границы этого предложения
+            mine = [{"pos": r["pos"] - s.start, "note": r["note"]}
+                    for r in refs if s.start <= r["pos"] <= s.stop]
+            if mine:
+                rec["notes"] = mine
+            if lemmatize:
+                rec["lemma"] = lemmas(nm)
+            reg["sentences"].append(rec)
+            sids.append(sid)
+        rec_p = {"id": pid, "chapter": cur, "n": n,
+                 "text": it["text"], "sentences": sids}
+        if it.get("cite"):
+            rec_p["cite"] = True
+        reg["paragraphs"].append(rec_p)
+
+    reg["chapters"] = [c for c in reg["chapters"]
+                       if c["id"] == "0" or
+                       any(p["chapter"] == c["id"] for p in reg["paragraphs"])
+                       or c["title"]]
+    reg["book"]["text_sha256"] = hashlib.sha256(
+        "\n".join(p["text"] for p in reg["paragraphs"]).encode()).hexdigest()
+    return reg
+
+
+# ===========================================================================
+#  Проверка
+# ===========================================================================
+
+def check(reg):
+    """Отчёт о качестве разбора. ERROR — чинить, WARN — посмотреть глазами."""
+    P, S = reg["paragraphs"], reg["sentences"]
+    out = []
+
+    def add(sev, code, msg, ex=()):
+        out.append({"sev": sev, "code": code, "msg": msg, "ex": list(ex)[:6]})
+
+    if not P:
+        add("ERROR", "empty", "Абзацев не найдено вообще")
+        return out
+
+    junk = [p["id"] for p in P
+            if len(p["text"]) < 200 and JUNK.search(p["text"])]
+    if junk:
+        add("ERROR", "junk", f"Реклама библиотеки в тексте: {len(junk)}", junk)
+
+    marks = [s["id"] for s in S if re.search(r"\[\d{1,3}\]", s["text"])]
+    if marks:
+        add("ERROR", "notemark",
+            f"Маркеры сносок остались в тексте: {len(marks)} — "
+            f"они попадут в цитату и сломают поиск", marks)
+
+    moji = [p["id"] for p in P if re.search(r"[�]|&[a-z]+;|Ã.|Ð.", p["text"])]
+    if moji:
+        add("ERROR", "encoding", f"Битая кодировка или HTML-сущности: {len(moji)}",
+            moji)
+
+    hyph = [p["id"] for p in P if re.search(r"\w- \w", p["text"])]
+    if hyph:
+        add("WARN", "hyphen",
+            f"Похоже на неснятый перенос («слово- вое»): {len(hyph)}", hyph)
+
+    low = [s["id"] for s in S if re.match(r"^[а-яё]", s["text"])]
+    if low:
+        add("WARN", "lowstart",
+            f"Предложение начинается со строчной — вероятно, разрыв не там: "
+            f"{len(low)}", low)
+
+    noend = [s["id"] for s in S
+             if not re.search(r"[.!?…:;»)\"]$", s["text"]) and len(s["text"]) > 40]
+    if noend:
+        add("WARN", "noend",
+            f"Длинное предложение без знака в конце — возможно, обрыв: "
+            f"{len(noend)}", noend)
+
+    if S:
+        L = sorted(len(s["text"]) for s in S)
+        p95 = L[int(len(L) * 0.95)]
+        longs = [s["id"] for s in S if len(s["text"]) > max(600, p95 * 2)]
+        if longs:
+            add("WARN", "toolong",
+                f"Очень длинные предложения — возможно, пропущен разрыв: "
+                f"{len(longs)}", longs)
+
+    heads = [p["id"] for p in P
+             if len(p["text"]) < 70 and not re.search(r"[.!?…]$", p["text"])
+             and len(reg["paragraphs"]) > 20]
+    if len(heads) > len(P) * 0.05:
+        add("WARN", "headings",
+            f"Много коротких абзацев без точки ({len(heads)}) — возможно, "
+            f"это заголовки, не опознанные как главы", heads)
+
+    seen = {}
+    dup = []
+    for s in S:
+        if len(s["norm"]) > 40:
+            if s["norm"] in seen:
+                dup.append(f'{seen[s["norm"]]} = {s["id"]}')
+            seen[s["norm"]] = s["id"]
+    if dup:
+        add("WARN", "dup", f"Одинаковые предложения: {len(dup)}", dup)
+
+    # неоднозначность для панели: одинаковое начало у разных предложений
+    starts = {}
+    for s in S:
+        key = " ".join(s["norm"].split()[:5])
+        if len(key.split()) == 5:
+            starts.setdefault(key, []).append(s["id"])
+    amb = {k: v for k, v in starts.items() if len(v) > 1}
+    if amb:
+        add("INFO", "ambiguous",
+            f"Одинаковые первые 5 слов у разных предложений: {len(amb)} групп "
+            f"— в панели придётся выбирать из нескольких",
+            [f'{v[0]}…: «{k[:40]}»' for k, v in list(amb.items())])
+
+    empty = [c["id"] for c in reg["chapters"]
+             if c["id"] != "0" and c.get("title")
+             and not any(p["chapter"] == c["id"] for p in P)
+             and not any(x["id"].startswith(c["id"] + ".")
+                         for x in reg["chapters"])]
+    if empty:
+        add("WARN", "emptychap", f"Главы без абзацев: {len(empty)}", empty)
+
+    N = reg.get("notes", {})
+    if N:
+        used = [x["note"] for s in S for x in s.get("notes", [])]
+        used += [x["note"] for c in reg["chapters"] for x in c.get("refs", [])]
+        used += [x["note"] for v in N.values() for x in v.get("refs", [])]
+        dangling = sorted({x for x in used if x not in N})
+        if dangling:
+            add("ERROR", "note_dangling",
+                f"Ссылки на несуществующие сноски: {len(dangling)}", dangling)
+        orphan = sorted(k for k in N if k not in used)
+        if orphan:
+            add("WARN", "note_orphan",
+                f"Сноски, на которые никто не ссылается: {len(orphan)} — "
+                f"в читалке они не появятся", orphan)
+
+    pre = sum(1 for p in P if p["chapter"] == "0")
+    if pre > len(P) * 0.3:
+        add("WARN", "nochapters",
+            f"{pre} из {len(P)} абзацев вне глав — заголовки, скорее всего, "
+            f"не распознались")
+    return out
+
+
+def print_report(reg, rep):
+    P, S = reg["paragraphs"], reg["sentences"]
+    b = reg["book"]
+    print(f'{b["title"]} — {", ".join(b.get("authors") or []) or "?"}')
+    print(f'формат: {b.get("source_format")}   sha256: {b["text_sha256"][:16]}…')
+    real = [c for c in reg["chapters"] if c["id"] != "0" or
+            any(p["chapter"] == "0" for p in P)]
+    print(f'глав: {len(real)}   абзацев: {len(P)}   предложений: {len(S)}   '
+          f'сносок: {len(reg.get("notes", {}))}')
+    if S:
+        L = sorted(len(s["text"]) for s in S)
+        print(f'длина предложения: медиана {L[len(L)//2]}, '
+              f'95% {L[int(len(L)*.95)]}, макс {L[-1]}\n')
+
+    ICON = {"ERROR": "✗", "WARN": "!", "INFO": "·"}
+    if not rep:
+        print("✓ проверки пройдены")
+    for r in rep:
+        print(f'{ICON[r["sev"]]} [{r["code"]}] {r["msg"]}')
+        for e in r["ex"]:
+            print(f'      {e}')
+    errs = sum(1 for r in rep if r["sev"] == "ERROR")
+    warns = sum(1 for r in rep if r["sev"] == "WARN")
+    print(f'\nошибок: {errs}   предупреждений: {warns}')
+    return errs
+
+
+# ===========================================================================
+#  Заморозка нумерации
+# ===========================================================================
+
+def lockfile(reg_path):
+    return Path(reg_path).with_suffix(".lock.json")
+
+
+def freeze(reg, reg_path):
+    lock = {"book": reg["book"]["id"],
+            "text_sha256": reg["book"]["text_sha256"],
+            "anchors": {s["id"]: s["norm"][:70] for s in reg["sentences"]}}
+    lockfile(reg_path).write_text(
+        json.dumps(lock, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f'Заморожено: {len(lock["anchors"])} якорей → '
+          f'{lockfile(reg_path).name}')
+    print("С этого момента нумерация раздана участникам и меняться не должна.")
+
+
+def verify(reg, reg_path):
+    lp = lockfile(reg_path)
+    if not lp.exists():
+        sys.exit(f"Нет {lp.name} — нумерация ещё не заморожена (bookreg freeze)")
+    lock = json.loads(lp.read_text(encoding="utf-8"))
+    old = lock["anchors"]
+    new = {s["id"]: s["norm"][:70] for s in reg["sentences"]}
+
+    if lock["text_sha256"] == reg["book"]["text_sha256"]:
+        print("✓ текст не менялся, все ссылки в заметках целы")
+        return 0
+
+    gone = [k for k in old if k not in new]
+    added = [k for k in new if k not in old]
+    moved = [k for k in old if k in new and old[k] != new[k]]
+
+    print("! текст изменился с момента заморозки\n")
+    print(f"  исчезли якоря:      {len(gone)}")
+    print(f"  появились новые:    {len(added)}")
+    print(f"  номер стал другим:  {len(moved)}   ← ЭТО ОПАСНО")
+    if moved:
+        print("\n  Эти ссылки в заметках теперь указывают не туда:")
+        # ищем, куда уехал старый текст
+        rev = {v: k for k, v in new.items()}
+        for k in moved[:15]:
+            dst = rev.get(old[k])
+            print(f'    {k:<12} было «{old[k][:44]}»')
+            print(f'    {"":<12} стало {"→ теперь " + dst if dst else "потеряно"}')
+    if gone and not moved:
+        print("\n  Сдвигов нет, только пропажи — вероятно, вы что-то удалили.")
+    return 1 if moved else 0
+
+
+# ===========================================================================
+#  Вывод читалки
+# ===========================================================================
+
+CSS = """
+:root{--fg:#1a1a1a;--dim:#9a9a9a;--hi:#fff3bf;--acc:#b06000}
+*{box-sizing:border-box}
+body{max-width:40em;margin:0 auto;padding:5rem 1.5rem 8rem;
+ font:1.06rem/1.7 Georgia,'PT Serif',serif;color:var(--fg)}
+h1{font-size:1.5rem;margin:0 0 2.5rem}
+h2{font-size:1.15rem;margin:3rem 0 1.2rem}
+h3{font-size:1rem;font-weight:400;font-style:italic;margin:2rem 0 1rem}
+p{margin:0 0 1.1em;text-align:justify;position:relative}
+p>.num{position:absolute;left:-4.6em;top:.25em;width:4em;text-align:right;
+ font:.7rem/1.6 ui-monospace,monospace;color:var(--dim);user-select:none}
+p:has(span.s.hl)>.num{color:#c48a00;font-weight:700}
+p.cite{margin-left:1.6em;padding-left:1em;border-left:2px solid #ddd;
+ font-size:.96em;color:#333;text-align:left}
+span.s{scroll-margin-top:40vh}
+span.s:target,span.s.hl{background:var(--hi)}
+sup.nt{font-size:.62em;line-height:0;user-select:none}
+sup.nt a{color:var(--acc);text-decoration:none;padding:0 .15em}
+ol.notes{margin-top:1rem;font-size:.9rem;color:#444;list-style:none;padding:0}
+ol.notes li{margin:0 0 .7em;scroll-margin-top:40vh}
+ol.notes li:target{background:var(--hi)}
+a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
+@media(max-width:820px){p>.num{position:static;display:block;text-align:left;
+ margin-bottom:.2em}}
+
+/* --- панель поиска (режим чтения с бумаги) --- */
+#bar{position:fixed;top:0;left:0;right:0;z-index:40;background:#fffffff2;
+ backdrop-filter:blur(6px);border-bottom:1px solid #e5e5e5;padding:.5rem 1rem;
+ font-family:system-ui,sans-serif}
+#bar .in{max-width:40em;margin:0 auto;display:flex;gap:.6rem;align-items:center}
+#q{flex:1;font:.92rem system-ui,sans-serif;padding:.42rem .7rem;
+ border:1px solid #ccc;border-radius:6px;outline:none}
+#q:focus{border-color:var(--acc)}
+#cnt{font-size:.78rem;color:var(--dim);white-space:nowrap}
+#res{max-width:40em;margin:.4rem auto 0;max-height:46vh;overflow:auto}
+#res div{padding:.45rem .6rem;border-radius:6px;cursor:pointer;
+ font:.86rem/1.45 system-ui,sans-serif}
+#res div:hover,#res div.on{background:#f2ede3}
+#res b{font:.72rem ui-monospace,monospace;color:var(--acc);margin-right:.5em}
+#res i{font-style:normal;background:var(--hi)}
+#miss{padding:.5rem .6rem;font:.86rem system-ui,sans-serif;color:#a33}
+
+/* --- всплывающая кнопка при выделении --- */
+#tb{position:absolute;z-index:50;display:none;gap:.28rem;padding:.3rem;
+ background:#1a1a1a;border-radius:9px;box-shadow:0 4px 16px #0004}
+#tb.on{display:flex}
+#tb button{font:.85rem/1 system-ui,sans-serif;color:#fff;background:#ffffff1a;
+ border:0;border-radius:6px;padding:.42rem .6rem;cursor:pointer;
+ display:flex;align-items:center;gap:.35rem;white-space:nowrap}
+#tb button:hover{background:#ffffff33}
+#tb button kbd{font:.62rem ui-monospace,monospace;opacity:.55}
+#tb .anc{color:#ffd479;font:.72rem ui-monospace,monospace;padding:.42rem .3rem
+ .42rem .5rem;align-self:center}
+#tb .trg{color:#bbb;font-size:.78rem;max-width:11em;overflow:hidden;
+ text-overflow:ellipsis}
+#ok{position:fixed;left:50%;bottom:2rem;transform:translateX(-50%);z-index:60;
+ background:#1a1a1a;color:#fff;padding:.55rem 1rem;border-radius:8px;
+ font:.85rem system-ui,sans-serif;opacity:0;transition:opacity .18s;
+ pointer-events:none}
+#ok.on{opacity:.94}
+@media print{#bar,#tb,#ok{display:none!important}body{padding-top:1rem}}
+"""
+
+JS = r"""
+(function(){
+var SENT = [].slice.call(document.querySelectorAll('span.s'));
+var BASE = location.href.split('#')[0];
+var byId = {}; SENT.forEach(function(e){ byId[e.id] = e; });
+
+/* ---------- нормализация: зеркало normalize() из bookreg.py ---------- */
+function norm(t){
+  return t.toLowerCase().replace(/ё/g,'е')
+    .replace(/[«»„“”‘’"']/g,'')
+    .replace(/[\u2010-\u2015\u2212]/g,'-')
+    .replace(/(^|\s)-+|-+(\s|$)/g,' ')
+    .replace(/[^0-9a-zа-я\s-]/g,' ')
+    .replace(/\s+/g,' ').trim();
+}
+/* pymorphy в браузере нет; обрезка основы до 5 букв ловит падежи */
+function stem(w){ return w.length > 5 ? w.slice(0,5) : w; }
+function like(a,b){ return b.indexOf(stem(a))===0 || a.indexOf(stem(b))===0; }
+
+/* ---------- порядок и якоря ---------- */
+function paraOf(id){ return id.split('.').slice(0,-1).join('.'); }
+
+function anchorFor(list){
+  if(!list.length) return null;
+  var a = list[0].id, b = list[list.length-1].id;
+  if(a === b) return a;
+  return paraOf(a) === paraOf(b) ? a + '-' + b.split('.').pop() : a + '-' + b;
+}
+
+function resolve(h){
+  var parts = h.split('-'), a = parts[0].trim(), b = (parts[1]||'').trim();
+  var pel = document.getElementById(a);
+  if(!b && pel && pel.tagName === 'P')
+    return [].slice.call(pel.querySelectorAll('span.s'));
+  var ia = SENT.indexOf(byId[a]);
+  if(ia < 0) return [];
+  if(!b) return [SENT[ia]];
+  if(b.indexOf('.') === -1) b = a.split('.').slice(0,-1).concat(b).join('.');
+  var ib = SENT.indexOf(byId[b]);
+  if(ib < 0){                       /* конца нет — до конца абзаца */
+    var p = SENT[ia].closest('p'), last = ia;
+    while(last+1 < SENT.length && SENT[last+1].closest('p') === p) last++;
+    ib = last;
+  }
+  if(ib < ia){ var t = ia; ia = ib; ib = t; }
+  return SENT.slice(ia, ib+1);
+}
+
+function applyHash(){
+  SENT.forEach(function(e){ e.classList.remove('hl'); });
+  var h = decodeURIComponent(location.hash.slice(1));
+  if(!h) return;
+  var sel = resolve(h);
+  sel.forEach(function(e){ e.classList.add('hl'); });
+  if(sel.length) sel[0].scrollIntoView({block:'center'});
+}
+applyHash();
+addEventListener('hashchange', applyHash);   /* иначе правка адреса не сработает */
+
+/* ---------- буфер обмена ---------- */
+function copyBoth(html, text){
+  if(navigator.clipboard && window.ClipboardItem && location.protocol !== 'file:'){
+    return navigator.clipboard.write([ new ClipboardItem({
+      'text/html':  new Blob([html], {type:'text/html'}),
+      'text/plain': new Blob([text], {type:'text/plain'})
+    })]).catch(function(){ return legacy(html); });
+  }
+  return legacy(html);          /* file:// и старые браузеры */
+}
+function legacy(html){
+  var d = document.createElement('div');
+  d.setAttribute('contenteditable','true');
+  d.style.cssText = 'position:fixed;left:-9999px;top:0;white-space:pre-wrap';
+  d.innerHTML = html;
+  document.body.appendChild(d);
+  var s = getSelection(), keep = s.rangeCount ? s.getRangeAt(0) : null;
+  var r = document.createRange(); r.selectNodeContents(d);
+  s.removeAllRanges(); s.addRange(r);
+  try { document.execCommand('copy'); } catch(e){}
+  s.removeAllRanges(); if(keep) s.addRange(keep);   /* вернуть выделение */
+  d.remove();
+  return Promise.resolve();
+}
+
+/* ---------- выделение ---------- */
+function picked(){
+  var s = getSelection();
+  if(!s.rangeCount || s.isCollapsed) return [];
+  var r = s.getRangeAt(0);
+  return SENT.filter(function(e){ return r.intersectsNode(e); });
+}
+
+/* триггер для М: если выделена часть предложения — берём именно её */
+function trigger(list){
+  var raw = getSelection().toString().replace(/\s+/g,' ').trim();
+  var full = list.map(function(e){ return e.textContent; })
+                 .join(' ').replace(/\s+/g,' ').trim();
+  var t = (raw && raw.length < full.length) ? raw : full;
+  var w = t.split(' ');
+  return w.length > 8 ? w.slice(0,8).join(' ') + '…' : t;
+}
+
+/* ---------- панель над выделением ---------- */
+var tb = document.createElement('div'); tb.id = 'tb';
+tb.innerHTML = '<span class="anc"></span>' +
+  '<button data-t="К">К <kbd>1</kbd></button>' +
+  '<button data-t="?">? <kbd>2</kbd></button>' +
+  '<button data-t="М">М <span class="trg"></span><kbd>3</kbd></button>';
+document.body.appendChild(tb);
+var ok = document.createElement('div'); ok.id = 'ok';
+document.body.appendChild(ok);
+
+var cur = [];
+function hide(){ tb.classList.remove('on'); cur = []; }
+
+function show(){
+  var list = picked();
+  if(!list.length){ hide(); return; }
+  cur = list;
+  tb.querySelector('.anc').textContent = anchorFor(list);
+  tb.querySelector('.trg').textContent = '«' + trigger(list) + '»';
+  tb.classList.add('on');
+  var r = getSelection().getRangeAt(0).getBoundingClientRect();
+  var w = tb.offsetWidth, h = tb.offsetHeight;
+  var x = Math.min(Math.max(8, r.left + r.width/2 - w/2),
+                   innerWidth - w - 8);
+  var y = r.top - h - 8;
+  var above = y > 4;
+  tb.style.left = (x + scrollX) + 'px';
+  tb.style.top  = ((above ? y : r.bottom + 8) + scrollY) + 'px';
+}
+
+function toast(t){ ok.textContent = t; ok.classList.add('on');
+  clearTimeout(ok._t); ok._t = setTimeout(function(){ ok.classList.remove('on'); }, 1400); }
+
+function emit(type){
+  if(!cur.length) return;
+  var anc = anchorFor(cur), url = BASE + '#' + anc;
+  var tail = type === 'М' ? ' «' + trigger(cur) + '»' : '';
+  /* &nbsp;, а не пробел: обычный пробел в конце HTML-фрагмента считается
+     незначащим и при вставке в Docs схлопывается — курсор прилипает к скобке */
+  var html = type + ' [<a href="' + url + '">' + anc + '</a>]' + tail + '&nbsp;';
+  var text = type + ' [' + anc + '](' + url + ')' + tail + ' ';
+  copyBoth(html, text).then(function(){
+    toast('Скопировано:  ' + type + ' ' + anc + tail);
+  });
+}
+
+tb.addEventListener('mousedown', function(e){ e.preventDefault(); });
+tb.addEventListener('click', function(e){
+  var b = e.target.closest('button');
+  if(b) emit(b.dataset.t);
+});
+
+document.addEventListener('selectionchange', function(){
+  clearTimeout(show._t); show._t = setTimeout(show, 60);
+});
+addEventListener('scroll', function(){ if(cur.length) show(); }, {passive:true});
+
+/* ---------- клавиши: обе раскладки и цифры ---------- */
+var KEY = { '1':'К','k':'К','к':'К', '2':'?','?':'?','/':'?', '3':'М','m':'М','м':'М' };
+addEventListener('keydown', function(e){
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  if(/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  var t = KEY[e.key.toLowerCase()];
+  if(t && cur.length){ e.preventDefault(); emit(t); }
+  if(e.key === 'Escape'){ getSelection().removeAllRanges(); hide(); }
+});
+
+/* ---------- поиск (чтение с бумаги) ---------- */
+var q = document.getElementById('q'),
+    res = document.getElementById('res'),
+    cnt = document.getElementById('cnt');
+
+function find(query){
+  var ws = norm(query).split(' ').filter(Boolean);
+  if(!ws.length) return [];
+  var out = [];
+  for(var i=0;i<IDX.length;i++){
+    var sw = IDX[i][1].split(' '), k = 0, first = -1, last = -1;
+    for(var j=0;j<sw.length && k<ws.length;j++){
+      if(like(ws[k], sw[j])){ if(first<0) first=j; last=j; k++; }
+    }
+    if(k < ws.length) continue;
+    out.push([ (last-first+1)/ws.length, first, IDX[i][0] ]);
+  }
+  out.sort(function(a,b){ return a[0]-b[0] || a[1]-b[1]; });
+  return out.slice(0, 12).map(function(h){ return h[2]; });
+}
+
+function mark(text, query){
+  var ws = norm(query).split(' ').filter(Boolean);
+  return text.split(/(\s+)/).map(function(tok){
+    var n = norm(tok);
+    return n && ws.some(function(w){ return like(w, n); })
+      ? '<i>' + tok.replace(/[<>&]/g,'') + '</i>'
+      : tok.replace(/[<>&]/g,'');
+  }).join('');
+}
+
+function pickList(list){
+  if(!list || !list.length) return;
+  list[0].scrollIntoView({block:'center'});
+  var r = document.createRange();
+  r.setStartBefore(list[0]);
+  r.setEndAfter(list[list.length-1]);
+  var s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  res.innerHTML = ''; cnt.textContent = '';
+  setTimeout(show, 30);          /* выделение → та же панель, что и от мыши */
+}
+function pick(id){ pickList(byId[id] ? [byId[id]] : []); }
+
+/* ---------- поиск по номеру ---------- */
+/* запрос вида 1.14 / 1.14.3 / 1.14.2-4 / 4.11.3-4.12.1, а также
+   целый адрес со ссылкой — из него берётся часть после # */
+function asAnchor(v){
+  var h = v.indexOf('#');
+  if(h >= 0) v = v.slice(h+1);
+  v = v.replace(/[\u2010-\u2015\u2212]/g,'-').replace(/[\s,]/g,'').replace(/\?.*$/,'');
+  return /^\d+(\.\d+)*(-\d+(\.\d+)*)?$/.test(v) ? v : null;
+}
+function byNumber(v){
+  var out = [], seen = {};
+  var exact = resolve(v);
+  if(exact.length){
+    out.push({ anchor: v, list: exact, exact: true });
+    seen[v] = 1;
+  }
+  /* всё, что начинается с введённого на границе точки: 1.14 → 1.14.1, 1.14.2 */
+  for(var i=0;i<SENT.length && out.length<13;i++){
+    var id = SENT[i].id;
+    if(seen[id]) continue;
+    if(id === v || id.indexOf(v + '.') === 0)
+      out.push({ anchor: id, list: [SENT[i]], exact: false });
+  }
+  return out;
+}
+
+var sel = -1, ids = [], hits = [];
+q && q.addEventListener('input', function(){
+  var v = q.value.trim();
+  sel = -1;
+
+  var num = asAnchor(v);
+  if(num){
+    hits = byNumber(num);
+    ids = hits.map(function(h){ return h.anchor; });
+    cnt.textContent = hits.length ? 'по номеру' : '';
+    if(!hits.length){
+      res.innerHTML = '<div id="miss">Нет такого номера.</div>';
+      return;
+    }
+    res.innerHTML = hits.map(function(h){
+      var txt = h.list.map(function(e){ return e.textContent; }).join(' ');
+      var tag = h.exact && h.list.length > 1
+                ? ' <span style="color:#9a9a9a">' + h.list.length + ' предл.</span>' : '';
+      return '<div data-id="' + h.anchor + '"><b>' + h.anchor + '</b>' + tag + ' ' +
+             txt.slice(0,150).replace(/[<>&]/g,'') + (txt.length>150?'…':'') + '</div>';
+    }).join('');
+    return;
+  }
+
+  if(v.length < 3){ res.innerHTML=''; cnt.textContent=''; return; }
+  hits = [];
+  ids = find(v);
+  cnt.textContent = ids.length ? ids.length + ' совпад.' : '';
+  if(!ids.length){
+    res.innerHTML = '<div id="miss">Ничего не найдено. ' +
+      'Попробуйте другие слова — возможно, в книге они иные.</div>';
+    return;
+  }
+  res.innerHTML = ids.map(function(id){
+    return '<div data-id="' + id + '"><b>' + id + '</b>' +
+           mark(byId[id].textContent, v) + '</div>';
+  }).join('');
+});
+function choose(anchor){
+  var list = resolve(anchor);
+  pickList(list.length ? list : (byId[anchor] ? [byId[anchor]] : []));
+}
+res && res.addEventListener('click', function(e){
+  var d = e.target.closest('div[data-id]');
+  if(d) choose(d.dataset.id);
+});
+q && q.addEventListener('keydown', function(e){
+  var items = res.querySelectorAll('div[data-id]');
+  if(e.key === 'ArrowDown' || e.key === 'ArrowUp'){
+    e.preventDefault();
+    if(!items.length) return;
+    sel = (sel + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
+    items.forEach(function(x,i){ x.classList.toggle('on', i===sel); });
+    items[sel].scrollIntoView({block:'nearest'});
+  } else if(e.key === 'Enter'){
+    e.preventDefault();
+    if(items.length) choose(items[sel < 0 ? 0 : sel].dataset.id);
+  } else if(e.key === 'Escape'){ q.value=''; res.innerHTML=''; cnt.textContent=''; }
+});
+addEventListener('keydown', function(e){
+  if(e.key === '/' && document.activeElement !== q &&
+     !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) && !cur.length){
+    e.preventDefault(); q.focus();
+  }
+});
+})();
+"""
+def write_html(reg, out):
+    e = html_mod.escape
+    chap = {c["id"]: c for c in reg["chapters"]}
+    marks = {}
+    for m in reg["marks"]:
+        marks.setdefault((m["chapter"], m["after"]), []).append(m["text"])
+    sent = {s["id"]: s for s in reg["sentences"]}
+    notes = reg.get("notes", {})
+    used = []
+
+    def render(t, refs, back):
+        """Текст с врезанными маркерами сносок. back — куда вернёт стрелка."""
+        if not refs:
+            return e(t)
+        parts, prev = [], 0
+        for r in sorted(refs, key=lambda x: x["pos"]):
+            pos = max(0, min(len(t), r["pos"]))
+            nid = r["note"]
+            nd = notes.get(nid) or {}
+            label = (nd.get("num") or "*").strip("[] ") or "*"
+            used.append((nid, label, back))
+            tip = e(nd.get("text", ""))[:400]
+            parts.append(e(t[prev:pos]))
+            parts.append(f'<sup class="nt"><a href="#{nid}" '
+                         f'title="{tip}">{e(label)}</a></sup>')
+            prev = pos
+        parts.append(e(t[prev:]))
+        return "".join(parts)
+
+    L = ['<!doctype html><html lang="ru"><meta charset="utf-8">',
+         '<meta name="viewport" content="width=device-width,initial-scale=1">',
+         f'<title>{e(reg["book"]["title"])}</title>', f"<style>{CSS}</style>",
+         '<div id="bar"><div class="in">'
+         '<input id="q" placeholder="Найти цитату или номер — 1.14.2 …" '
+         'autocomplete="off"><span id="cnt"></span></div>'
+         '<div id="res"></div></div>',
+         f'<h1>{e(reg["book"]["title"])}</h1>']
+    seen = set()
+    for p in reg["paragraphs"]:
+        c = p["chapter"]
+        if c not in seen:
+            seen.add(c)
+            ch = chap.get(c, {})
+            t = ch.get("title", "")
+            if t:
+                L.append(f'<h2 id="c{c}">'
+                         + render(t, ch.get("refs", []), f"c{c}") + "</h2>")
+        for mk in marks.get((c, p["n"] - 1), []):
+            L.append(f"<h3>{e(mk)}</h3>")
+        spans = " ".join(
+            f'<span class="s" id="{sid}">'
+            + render(sent[sid]["text"], sent[sid].get("notes", []), sid)
+            + "</span>"
+            for sid in p["sentences"])
+        cls = ' class="cite"' if p.get("cite") else ""
+        L.append(f'<p id="{p["id"]}"{cls}><span class="num">{p["id"]}</span>'
+                 f'{spans}</p>')
+
+    if used:
+        L.append('<h2 id="notes">Примечания</h2><ol class="notes">')
+        seen_n = set()
+        for nid, label, back in used:
+            if nid in seen_n:
+                continue
+            seen_n.add(nid)
+            nd = notes.get(nid) or {}
+            L.append(f'<li id="{nid}"><a class="back" href="#{back}">'
+                     f'{e(label)}</a> '
+                     + render(nd.get("text", ""), nd.get("refs", []), nid)
+                     + "</li>")
+        L.append("</ol>")
+    idx = [[s["id"], s["norm"]] for s in reg["sentences"]]
+    L.append("<script>var IDX=" +
+             json.dumps(idx, ensure_ascii=False, separators=(",", ":")) +
+             ";</script>")
+    L.append(f"<script>{JS}</script>")
+    Path(out).write_text("\n".join(L), encoding="utf-8")
+
+
+# ===========================================================================
+
+INDEX_CSS = """
+:root{--fg:#1a1a1a;--dim:#8a8a8a;--acc:#b06000;--line:#e6e2da}
+body{max-width:44rem;margin:0 auto;padding:4rem 1.5rem 6rem;background:#fffdfa;
+ color:var(--fg);font:16px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',
+ Roboto,sans-serif}
+h1{font-size:1.6rem;margin:0 0 .4rem}
+.sub{color:#666;margin:0 0 2.5rem}
+a.bk{display:block;text-decoration:none;color:inherit;padding:1rem 1.1rem;
+ margin:0 0 .7rem;border:1px solid var(--line);border-radius:10px;
+ background:#fff;transition:border-color .15s}
+a.bk:hover{border-color:var(--acc)}
+a.bk .t{font-size:1.08rem;font-weight:600;margin-bottom:.15rem}
+a.bk .a{color:#666;font-size:.9rem}
+a.bk .n{color:var(--dim);font-size:.8rem;margin-top:.45rem;
+ font-family:ui-monospace,monospace}
+.lock{color:#2a7f3e}.nolock{color:#b06000}
+footer{margin-top:2.5rem;padding-top:1.2rem;border-top:1px solid var(--line);
+ font-size:.88rem;color:#666}
+footer a{color:var(--acc)}
+"""
+
+
+def write_index(regs, out):
+    """Страница со списком книг — точка входа для участников."""
+    e = html_mod.escape
+    cards = []
+    for reg, locked in regs:
+        b = reg["book"]
+        ch = len([c for c in reg["chapters"] if c["id"] != "0"])
+        cards.append(
+            f'<a class="bk" href="books/{b["id"]}.html">'
+            f'<div class="t">{e(b["title"])}</div>'
+            f'<div class="a">{e(", ".join(b.get("authors") or []))}</div>'
+            f'<div class="n">глав {ch} · абзацев {len(reg["paragraphs"])} · '
+            f'предложений {len(reg["sentences"])} · '
+            + ('<span class="lock">нумерация заморожена</span>' if locked
+               else '<span class="nolock">не заморожено</span>')
+            + "</div></a>")
+    Path(out).write_text(
+        '<!doctype html><html lang="ru"><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>Книги</title><style>' + INDEX_CSS + '</style>'
+        '<h1>Книги</h1><p class="sub">Выделите текст — появится панель '
+        'с кнопками К, ? и М. Или найдите цитату по словам или номеру.</p>'
+        + "".join(cards)
+        + '<footer><a href="docs.html">Документация</a></footer>',
+        encoding="utf-8")
+
+
+def load(p):
+    return json.loads(Path(p).read_text(encoding="utf-8"))
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="bookreg")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+
+    b = sub.add_parser("build", help="собрать реестр из книги")
+    b.add_argument("file")
+    b.add_argument("--id", default="")
+    b.add_argument("-o", "--outdir", default=".")
+    b.add_argument("--no-lemma", action="store_true",
+                   help="без лемматизации (быстрее, хуже ищет)")
+
+    c = sub.add_parser("check", help="проверить качество разбора")
+    c.add_argument("registry")
+
+    f = sub.add_parser("freeze", help="заморозить нумерацию")
+    f.add_argument("registry")
+
+    v = sub.add_parser("verify", help="сравнить с замороженной нумерацией")
+    v.add_argument("registry")
+
+    rb = sub.add_parser("rebuild",
+                        help="пересобрать все книги папки из их исходников")
+    rb.add_argument("dir", nargs="?", default="books")
+
+    s = sub.add_parser("search", help="поиск цитаты")
+    s.add_argument("registry")
+    s.add_argument("query", nargs="+")
+    s.add_argument("-n", type=int, default=5)
+
+    a = ap.parse_args()
+
+    if a.cmd == "build":
+        src = Path(a.file)
+        bid = a.id or re.sub(r"\W+", "_", src.stem).strip("_").lower()
+        outdir = Path(a.outdir)
+        outdir.mkdir(parents=True, exist_ok=True)
+        reg = build(src, bid, lemmatize=not a.no_lemma)
+        (outdir / f"{bid}.json").write_text(
+            json.dumps(reg, ensure_ascii=False, indent=1), encoding="utf-8")
+        write_html(reg, outdir / f"{bid}.html")
+        (outdir / f"{bid}.txt").write_text(
+            "\n".join(f'{x["id"]}\t{x["text"]}' for x in reg["sentences"]),
+            encoding="utf-8")
+        errs = print_report(reg, check(reg))
+        print(f'\n→ {bid}.json  {bid}.html  {bid}.txt')
+        if errs:
+            print("Есть ошибки — почините до freeze.")
+        sys.exit(1 if errs else 0)
+
+    if a.cmd == "check":
+        reg = load(a.registry)
+        sys.exit(1 if print_report(reg, check(reg)) else 0)
+
+    if a.cmd == "freeze":
+        reg = load(a.registry)
+        if print_report(reg, check(reg)):
+            sys.exit("\nОтказ: сначала почините ошибки.")
+        freeze(reg, a.registry)
+
+    if a.cmd == "verify":
+        sys.exit(verify(load(a.registry), a.registry))
+
+    if a.cmd == "rebuild":
+        d = Path(a.dir)
+        regs = sorted(x for x in d.glob("*.json")
+                      if not x.name.endswith(".lock.json"))
+        if not regs:
+            sys.exit(f"В {d} нет реестров")
+        bad = 0
+        for rp in regs:
+            old = load(rp)
+            src = d / old["book"]["source_file"]
+            bid = old["book"]["id"]
+            if not src.exists():
+                print(f"! {bid}: нет исходника {src.name}, пропуск")
+                bad += 1
+                continue
+            reg = build(src, bid, lemmatize=any(
+                "lemma" in x for x in old["sentences"][:1]))
+            rp.write_text(json.dumps(reg, ensure_ascii=False, indent=1),
+                          encoding="utf-8")
+            write_html(reg, d / f"{bid}.html")
+            (d / f"{bid}.txt").write_text(
+                "\n".join(f'{x["id"]}\t{x["text"]}' for x in reg["sentences"]),
+                encoding="utf-8")
+            errs = len([r for r in check(reg) if r["sev"] == "ERROR"])
+            same = old["book"]["text_sha256"] == reg["book"]["text_sha256"]
+            flag = "✓" if same and not errs else ("!" if same else "СДВИГ")
+            print(f'{flag} {bid:<12} абз. {len(reg["paragraphs"]):>4}  '
+                  f'предл. {len(reg["sentences"]):>5}  '
+                  f'{"нумерация та же" if same else "НУМЕРАЦИЯ ИЗМЕНИЛАСЬ"}'
+                  + (f"  ошибок: {errs}" if errs else ""))
+            if not same or errs:
+                bad += 1
+        site = [(load(rp), lockfile(rp).exists()) for rp in regs]
+        write_index(site, d.parent / "index.html")
+        print(f'\n→ {(d.parent / "index.html")}')
+        for rp in regs:
+            if lockfile(rp).exists():
+                print(f"--- verify {rp.name} ---")
+                verify(load(rp), rp)
+        sys.exit(1 if bad else 0)
+
+    if a.cmd == "search":
+        reg = load(a.registry)
+        hits = search(reg["sentences"], " ".join(a.query), a.n)
+        if not hits:
+            print("не найдено — переформулируйте")
+            sys.exit(1)
+        for h in hits:
+            print(f'[{h["id"]:<12}] {h["text"]}')
+
+
+if __name__ == "__main__":
+    main()
