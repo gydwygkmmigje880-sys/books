@@ -77,6 +77,51 @@ def normalize(t):
     return re.sub(r"\s+", " ", t).strip()
 
 
+# перед этими символами прямая кавычка считается открывающей
+BEFORE_OPEN = set(' \t\n(\u005b{\u2013\u2014\u2015-\u2026«„')
+
+
+def typo(t):
+    """
+    Прямые кавычки → ёлочки, многоточие заводится внутрь цитаты.
+
+    В FB2 кавычка одна на оба случая, поэтому открывающая опознаётся по
+    соседу слева. Уровень вложенности считается, чтобы внутренняя цитата
+    получила лапки по русской традиции: «текст „внутри“ текст».
+
+    Многоточие у Ленина стоит снаружи кавычек — …"текст"… — потому что
+    отмечает пропуск в цитируемом. Читать удобнее, когда оно внутри:
+    «…текст…». Замена перестановочная, длина текста не меняется, поэтому
+    смещения сносок и оформления остаются в силе.
+    """
+    # Вложенные лапки — только если кавычки в абзаце сходятся. При нечётном
+    # числе (обрыв цитаты через абзац или, чаще, дефект распознавания в
+    # исходнике) вложенность даст «„» посреди текста, а это выглядит ошибкой
+    # заметнее, чем просто не туда повёрнутая ёлочка.
+    nest = t.count('"') % 2 == 0
+    out, depth = [], 0
+    for i, ch in enumerate(t):
+        if ch not in '"\u201c\u201d\u201e\u2018\u2019':
+            out.append(ch)
+            continue
+        prev = out[-1] if out else " "
+        if prev in BEFORE_OPEN:
+            out.append("«" if depth == 0 or not nest else "„")
+            depth += 1
+        else:
+            depth = max(0, depth - 1)
+            out.append("»" if depth == 0 or not nest else "“")
+    s = "".join(out)
+    # Порядок важен. Между двумя цитатами — «конец»… «начало» — многоточие
+    # относится к КОНЦУ первой: пропуск сделан в ней. Поэтому закрывающее
+    # правило идёт первым, иначе многоточие уедет в следующую цитату.
+    # Пробел сохраняется: без него соседние цитаты слипаются в »« и razdel
+    # перестаёт видеть границу предложения.
+    s = re.sub("(»|\u201c)(\\s*)\u2026", "\u2026\\1\\2", s)   # »…  →  …»
+    s = re.sub("\u2026(\\s*)(«|\u201e)", "\\1\\2\u2026", s)   # …«  →  «…
+    return s
+
+
 _morph = None
 
 
@@ -474,7 +519,7 @@ READERS = {".fb2": read_fb2, ".epub": read_epub, ".html": read_html,
 #  Сборка реестра
 # ===========================================================================
 
-def build(path, book_id, lemmatize=True):
+def build(path, book_id, lemmatize=True, typo_on=False):
     path = Path(path)
     reader = READERS.get(path.suffix.lower())
     if not reader:
@@ -509,6 +554,8 @@ def build(path, book_id, lemmatize=True):
                 counters.append(1)         # первая глава нового уровня
             cur = ".".join(map(str, counters))
             n = 0
+            if typo_on:
+                it["text"] = typo(it["text"])
             reg["chapters"].append({"id": cur, "title": it["text"],
                                     "level": lvl,
                                     "refs": it.get("refs", []),
@@ -519,6 +566,8 @@ def build(path, book_id, lemmatize=True):
                                  "text": it["text"]})
             continue
 
+        if typo_on:
+            it["text"] = typo(it["text"])
         n += 1
         pid = f"{cur}.{n}"
         sids = []
@@ -563,6 +612,7 @@ def build(path, book_id, lemmatize=True):
                        if c["id"] == "0" or
                        any(p["chapter"] == c["id"] for p in reg["paragraphs"])
                        or c["title"]]
+    reg["book"]["quotes"] = bool(typo_on)
     reg["book"]["text_sha256"] = hashlib.sha256(
         "\n".join(p["text"] for p in reg["paragraphs"]).encode()).hexdigest()
     return reg
@@ -665,6 +715,17 @@ def check(reg):
                          for x in reg["chapters"])]
     if empty:
         add("WARN", "emptychap", f"Главы без абзацев: {len(empty)}", empty)
+
+    QP = re.compile(r"[«»\u201e\u201c]")
+    unbal = []
+    for p_ in P:
+        q = QP.findall(p_["text"])
+        if q.count("«") + q.count("\u201e") != q.count("»") + q.count("\u201c"):
+            unbal.append(p_["id"])
+    if unbal:
+        add("WARN", "quotes",
+            f"Кавычки не сходятся в абзаце: {len(unbal)} — цитата тянется "
+            f"через абзацы либо кавычка потеряна в исходнике", unbal)
 
     N = reg.get("notes", {})
     if N:
@@ -1317,6 +1378,9 @@ def main():
     b.add_argument("-o", "--outdir", default=".")
     b.add_argument("--no-lemma", action="store_true",
                    help="без лемматизации (быстрее, хуже ищет)")
+    b.add_argument("--quotes", action="store_true",
+                   help="привести кавычки к ёлочкам и завести многоточие "
+                        "внутрь цитаты (по умолчанию текст не трогается)")
 
     c = sub.add_parser("check", help="проверить качество разбора")
     c.add_argument("registry")
@@ -1343,7 +1407,8 @@ def main():
         bid = a.id or re.sub(r"\W+", "_", src.stem).strip("_").lower()
         outdir = Path(a.outdir)
         outdir.mkdir(parents=True, exist_ok=True)
-        reg = build(src, bid, lemmatize=not a.no_lemma)
+        reg = build(src, bid, lemmatize=not a.no_lemma,
+                    typo_on=a.quotes)
         (outdir / f"{bid}.json").write_text(
             json.dumps(reg, ensure_ascii=False, indent=1), encoding="utf-8")
         write_html(reg, outdir / f"{bid}.html")
@@ -1384,8 +1449,10 @@ def main():
                 print(f"! {bid}: нет исходника {src.name}, пропуск")
                 bad += 1
                 continue
-            reg = build(src, bid, lemmatize=any(
-                "lemma" in x for x in old["sentences"][:1]))
+            reg = build(
+                src, bid,
+                lemmatize=any("lemma" in x for x in old["sentences"][:1]),
+                typo_on=old["book"].get("quotes", False))
             rp.write_text(json.dumps(reg, ensure_ascii=False, indent=1),
                           encoding="utf-8")
             write_html(reg, d / f"{bid}.html")
