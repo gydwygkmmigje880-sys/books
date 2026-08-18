@@ -307,7 +307,10 @@ markdown-ссылки. В конце стоит неразрывный проб�
   «Примечания», оттуда стрелка возвращает на место;</li>
 <li>у маркера сноски <code>user-select: none</code> — при копировании мышкой в буфер он
   не попадёт;</li>
-<li>блочные цитаты отбиты полосой слева (у Ленина это 16% текста);</li>
+<li>блочные цитаты отбиты полосой слева (у Ленина это 16% текста), атрибуция
+  под ними — курсивом справа;</li>
+<li>курсив и полужирный сохраняются. У Ленина 447 фрагментов курсива, и это не
+  оформление, а смысл: он выделяет то, на чём держится его возражение;</li>
 <li>номера абзацев на полях, при подсветке диапазона выделяются цветом;</li>
 <li>подписан <code>hashchange</code>: правка адреса в открытой вкладке работает без
   перезагрузки.</li>
@@ -340,7 +343,9 @@ markdown-ссылки. В конце стоит неразрывный проб�
     { &quot;id&quot;: &quot;2.1.4&quot;, &quot;chapter&quot;: &quot;2.1&quot;, &quot;n&quot;: 4,
       &quot;text&quot;: &quot;…&quot;,
       &quot;sentences&quot;: [&quot;2.1.4.1&quot;, &quot;2.1.4.2&quot;],
-      &quot;cite&quot;: true }                        // абзац из блочной цитаты
+      &quot;cite&quot;: true,                         // абзац из блочной цитаты
+      &quot;author&quot;: false,                      // атрибуция под цитатой
+      &quot;fmt&quot;: [ { &quot;pos&quot;: 31, &quot;len&quot;: 12, &quot;t&quot;: &quot;e&quot; } ] }
   ],
   &quot;sentences&quot;: [
     { &quot;id&quot;: &quot;2.1.4.1&quot;, &quot;para&quot;: &quot;2.1.4&quot;, &quot;chapter&quot;: &quot;2.1&quot;, &quot;n&quot;: 1,
@@ -348,7 +353,8 @@ markdown-ссылки. В конце стоит неразрывный проб�
       &quot;norm&quot;: &quot;…&quot;,                          // для поиска
       &quot;lemma&quot;: &quot;…&quot;,                         // начальные формы слов
       &quot;start&quot;: 0, &quot;stop&quot;: 87,               // смещения внутри абзаца
-      &quot;notes&quot;: [ { &quot;pos&quot;: 24, &quot;note&quot;: &quot;n_5&quot; } ] }
+      &quot;notes&quot;: [ { &quot;pos&quot;: 24, &quot;note&quot;: &quot;n_5&quot; } ],
+      &quot;fmt&quot;:   [ { &quot;pos&quot;: 31, &quot;len&quot;: 12, &quot;t&quot;: &quot;e&quot; } ] }
   ],
   &quot;marks&quot;: [ { &quot;chapter&quot;: &quot;3.1&quot;, &quot;after&quot;: 7, &quot;text&quot;: &quot;а) Феодальный социализм&quot; } ],
   &quot;notes&quot;: {
@@ -366,12 +372,76 @@ markdown-ссылки. В конце стоит неразрывный проб�
 <li><strong><code>lemma</code></strong> — то же, но каждое слово в начальной форме. По нему идёт поиск
   команды <code>search</code>. Поля нет, если собирали с <code>--no-lemma</code>.</li>
 <li><strong><code>cite: true</code></strong> — абзац пришёл из блочной цитаты.</li>
-<li><strong><code>marks</code></strong> — подзаголовки внутри главы (<code>а)</code>, <code>b)</code>, <code>с)</code>). Своего уровня
-  нумерации не получают, показываются в читалке. <code>after</code> — номер абзаца, после
-  которого стоит подзаголовок.</li>
-<li><strong><code>notes[*].refs</code></strong> — сноски внутри сносок. Бывают: у Энгельса примечание
-  1888 года ссылается на семь дальнейших.</li>
+<li><strong><code>author: true</code></strong> — атрибуция под цитатой (в FB2 это <code>&lt;text-author&gt;</code>):
+  «(стр. 177—178 шестого немецкого издания)». В читалке — курсивом справа.</li>
+<li><strong><code>fmt</code></strong> — встроенное оформление: <code>pos</code> и <code>len</code> в символах, <code>t</code> — тип.
+  Есть и у абзаца (координаты внутри абзаца), и у предложения (внутри
+  предложения). Диапазон, начавшийся в одном предложении и кончившийся в
+  другом, обрезается по границам, поэтому у каждого предложения оформление
+  замкнуто само в себе.</li>
 </ul>
+<table>
+<thead>
+<tr>
+<th><code>t</code></th>
+<th>что это</th>
+<th>тег в читалке</th>
+<th>откуда</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>e</code></td>
+<td>курсив</td>
+<td><code>&lt;em&gt;</code></td>
+<td><code>emphasis</code>, <code>&lt;i&gt;</code>, <code>&lt;em&gt;</code></td>
+</tr>
+<tr>
+<td><code>s</code></td>
+<td>полужирный</td>
+<td><code>&lt;strong&gt;</code></td>
+<td><code>strong</code>, <code>&lt;b&gt;</code></td>
+</tr>
+<tr>
+<td><code>k</code></td>
+<td>зачёркнутый</td>
+<td><code>&lt;s&gt;</code></td>
+<td><code>strikethrough</code>, <code>&lt;del&gt;</code></td>
+</tr>
+<tr>
+<td><code>b</code></td>
+<td>нижний индекс</td>
+<td><code>&lt;sub&gt;</code></td>
+<td><code>sub</code></td>
+</tr>
+<tr>
+<td><code>p</code></td>
+<td>верхний индекс</td>
+<td><code>&lt;sup&gt;</code></td>
+<td><code>sup</code></td>
+</tr>
+<tr>
+<td><code>c</code></td>
+<td>моноширинный</td>
+<td><code>&lt;code&gt;</code></td>
+<td><code>code</code></td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>прочее</td>
+<td><code>&lt;span&gt;</code></td>
+<td><code>style</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>text</code> при этом остаётся чистым текстом</strong> — оформление в него не
+  подмешивается. Иначе оно попадало бы в цитату при копировании и в
+  поисковый индекс.
+- <strong><code>marks</code></strong> — подзаголовки внутри главы (<code>а)</code>, <code>b)</code>, <code>с)</code>). Своего уровня
+  нумерации не получают, показываются в читалке. <code>after</code> — номер абзаца, после
+  которого стоит подзаголовок.
+- <strong><code>notes[*].refs</code></strong> — сноски внутри сносок. Бывают: у Энгельса примечание
+  1888 года ссылается на семь дальнейших.</p>
 <h3 id="ltidgthtml-читалка"><code>&lt;id&gt;.html</code> — читалка</h3>
 <p>Раздаётся участникам. Всё описано в разделе 5.</p>
 <h3 id="indexhtml-список-книг"><code>index.html</code> — список книг</h3>
@@ -598,6 +668,8 @@ git add -A &amp;&amp; git commit -m &quot;…&quot; &amp;&amp; git push
 <li>Подзаголовки внутри главы своего уровня нумерации не получают: якорь стал бы
   пятизначным.</li>
 <li>Стихи внутри <code>&lt;poem&gt;</code> разбираются как обычные абзацы.</li>
+<li>Оформление внутри слова (курсивом выделена часть слова) сохранится, но при
+  копировании цитаты в документ пропадёт: в буфер идёт чистый текст.</li>
 <li>Таблицы и картинки не переносятся.</li>
 <li>Реестры, собранные с <code>--no-lemma</code> и без него, лучше не смешивать в одном
   проекте: команда <code>search</code> у первых работает хуже.</li>

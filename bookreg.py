@@ -140,55 +140,97 @@ FB2NS = "http://www.gribuser.ru/xml/fictionbook/2.0"
 
 
 NOTE_OPEN, NOTE_CLOSE = "\ue000", "\ue001"
+FMT_OPEN, FMT_CLOSE = "\ue002", "\ue003"
+
+# встроенное оформление: тег → однобуквенный код в реестре → тег в читалке
+FMT = {"emphasis": "e", "italic": "e", "i": "e", "em": "e",
+       "strong": "s", "b": "s", "bold": "s",
+       "strikethrough": "k", "s": "k", "del": "k",
+       "sub": "b", "sup": "p", "code": "c", "style": "y"}
+FMT_TAG = {"e": "em", "s": "strong", "k": "s", "b": "sub", "p": "sup",
+           "c": "code", "y": "span"}
 
 
-def _extract_refs(text):
+def _parse_marks(text):
     """
-    Достаёт метки сносок, расставленные при обходе, и переводит их в
-    позиции в уже вычищенном тексте.
+    Разбирает строку с сентинелами и отдаёт (чистый текст, сноски, оформление).
 
-    Метка ставится сентинелом \\ue000id\\ue001, а не сразу позицией:
-    clean() схлопывает пробелы и сдвигает всё, что посчитано заранее.
+    Сентинелы, а не заранее посчитанные позиции: clean() схлопывает пробелы и
+    сдвинул бы всё, что посчитано до него. Поэтому текст сначала чистится
+    вместе с метками, и только потом метки снимаются.
     """
-    # split даёт [текст, id, текст, id, ...]
-    chunks = re.split(f"{NOTE_OPEN}(.*?){NOTE_CLOSE}", text)
-    buf, refs = "", []
-    for k, part in enumerate(chunks):
-        if k % 2 == 0:
-            buf += part
+    out, refs, fmt, stack = [], [], [], []
+    pos, i, n = 0, 0, len(text)
+    while i < n:
+        ch = text[i]
+        if ch == NOTE_OPEN:
+            j = text.find(NOTE_CLOSE, i)
+            if j < 0:
+                i += 1
+                continue
+            refs.append({"pos": pos, "note": text[i + 1:j]})
+            i = j + 1
+        elif ch == FMT_OPEN:
+            stack.append((text[i + 1] if i + 1 < n else "y", pos))
+            i += 2
+        elif ch == FMT_CLOSE:
+            if stack:
+                t, start = stack.pop()
+                if pos > start:
+                    fmt.append({"pos": start, "len": pos - start, "t": t})
+            i += 1
         else:
-            refs.append({"pos": len(buf), "note": part})
-    return buf, refs
+            out.append(ch)
+            pos += 1
+            i += 1
+    fmt.sort(key=lambda x: (x["pos"], -x["len"]))
+    return "".join(out), refs, fmt
 
 
-def _fb2_text(el, keep_refs=False):
+def _inline(el, localname, skip_note_text=True):
     """
-    Текст элемента FB2. Маркер сноски <a type="note">[4]</a> из текста
-    убирается — иначе «[4]» попадёт в цитату и сломает поиск, — но место,
-    где он стоял, запоминается, чтобы читалка могла показать сноску.
+    Собирает текст элемента, расставляя сентинелы сносок и оформления.
+
+    Маркер сноски «[4]» из текста убирается: попав в цитату, он ломает и
+    поиск, и саму цитату. Позиция запоминается.
     """
     parts = []
 
-    def walk(n):
-        if n.text:
-            parts.append(n.text)
-        for ch in n:
-            tag = etree.QName(ch).localname
-            if tag == "a" and ch.get("type") == "note":
+    def walk(node):
+        if node.text:
+            parts.append(node.text)
+        for ch in node:
+            tag = localname(ch)
+            if tag == "a" and (ch.get("type") == "note" or skip_note_text):
                 nid = (ch.get("{http://www.w3.org/1999/xlink}href")
                        or ch.get("href") or "").lstrip("#")
-                if keep_refs and nid:
-                    parts.append(f"{NOTE_OPEN}{nid}{NOTE_CLOSE}")
-            elif tag != "image":
+                txt = "".join(ch.itertext()).strip()
+                if ch.get("type") == "note" or re.fullmatch(r"\[?\d{1,4}\]?", txt):
+                    if nid:
+                        parts.append(NOTE_OPEN + nid + NOTE_CLOSE)
+                else:
+                    walk(ch)
+            elif tag in ("image", "img"):
+                pass
+            else:
+                code = FMT.get(tag)
+                if code:
+                    parts.append(FMT_OPEN + code)
                 walk(ch)
+                if code:
+                    parts.append(FMT_CLOSE)
             if ch.tail:
                 parts.append(ch.tail)
 
     walk(el)
-    raw = clean("".join(parts))
-    if not keep_refs:
-        return re.sub(f"{NOTE_OPEN}.*?{NOTE_CLOSE}", "", raw)
-    return _extract_refs(raw)
+    return _parse_marks(clean("".join(parts)))
+
+
+def _fb2_text(el, keep_refs=False):
+    """Текст элемента FB2. keep_refs → отдать ещё сноски и оформление."""
+    t, refs, fmt = _inline(el, lambda e: etree.QName(e).localname)
+    return (t, refs, fmt) if keep_refs else t
+
 
 
 def read_fb2(path):
@@ -202,13 +244,13 @@ def read_fb2(path):
     def section(sec, level):
         ti = sec.find("f:title", ns)
         if ti is not None:
-            t, refs = _fb2_text(ti, keep_refs=True)
+            t, refs, fmt = _fb2_text(ti, keep_refs=True)
             items.append({"kind": "chapter", "level": level,
-                          "text": t, "refs": refs})
+                          "text": t, "refs": refs, "fmt": fmt})
         subs = sec.findall("f:section", ns)
         if subs:
-            for s in subs:
-                section(s, level + 1)
+            for sub in subs:
+                section(sub, level + 1)
             return
         for el in sec:
             tag = local(el)
@@ -219,13 +261,17 @@ def read_fb2(path):
                 continue
             if tag not in ("p", "poem", "cite", "epigraph"):
                 continue
-            # текст в cite/epigraph бывает не в <p>, а в <subtitle> или <v>
+            # текст в cite/epigraph бывает не в <p>: финал «Манифеста» лежит
+            # в <cite><subtitle>, атрибуция цитаты — в <text-author>
             blocks = [el] if tag == "p" else [
-                x for x in el.iter() if local(x) in ("p", "subtitle", "v")]
+                x for x in el.iter()
+                if local(x) in ("p", "subtitle", "v", "text-author")]
             for b in blocks:
-                t, refs = _fb2_text(b, keep_refs=True)
+                t, refs, fmt = _fb2_text(b, keep_refs=True)
                 items.append({"kind": "para", "text": t, "refs": refs,
-                              "cite": tag in ("cite", "epigraph")})
+                              "fmt": fmt,
+                              "cite": tag in ("cite", "epigraph"),
+                              "author": local(b) == "text-author"})
 
     body = root.find("f:body", ns)
     for sec in body.findall("f:section", ns):
@@ -239,19 +285,21 @@ def read_fb2(path):
             if not nid:
                 continue
             ti = sec.find("f:title", ns)
-            chunks = [_fb2_text(x, keep_refs=True) for x in sec.findall("f:p", ns)]
-            body, refs, off = "", [], 0
-            for t, rs in chunks:
-                if body:
-                    body += " "
+            body_t, refs, fmt, off = "", [], [], 0
+            for t, rs, fs in [_fb2_text(x, keep_refs=True)
+                              for x in sec.findall("f:p", ns)]:
+                if body_t:
+                    body_t += " "
                     off += 1
                 for r in rs:
                     refs.append({"pos": off + r["pos"], "note": r["note"]})
-                body += t
+                for f in fs:
+                    fmt.append({"pos": off + f["pos"], "len": f["len"],
+                                "t": f["t"]})
+                body_t += t
                 off += len(t)
-            notes[nid] = {
-                "num": _fb2_text(ti) if ti is not None else "",
-                "text": body, "refs": refs}
+            notes[nid] = {"num": _fb2_text(ti) if ti is not None else "",
+                          "text": body_t, "refs": refs, "fmt": fmt}
 
     meta = {}
     ti = root.find(".//f:title-info", ns)
@@ -287,18 +335,18 @@ def _html_items(tree):
                 isinstance(c.tag, str) and c.tag.lower().split("}")[-1] in BLOCK
                 for c in el.iter() if c is not el):
             continue
-        # сноски-ссылки [4] выкидываем
-        for a in el.iter("a"):
-            t = (a.text or "").strip()
-            if re.fullmatch(r"\[?\d{1,4}\]?", t):
-                a.text = ""
-        t = clean(el.text_content())
+        t, refs, fmt = _inline(
+            el, lambda e: (e.tag.lower().split("}")[-1]
+                           if isinstance(e.tag, str) else ""))
         if len(t) < 2:
             continue
         if tag[0] == "h" and tag[1:].isdigit():
-            items.append({"kind": "chapter", "level": int(tag[1]), "text": t})
+            items.append({"kind": "chapter", "level": int(tag[1]),
+                          "text": t, "refs": refs, "fmt": fmt})
         else:
-            items.append({"kind": "para", "text": t})
+            items.append({"kind": "para", "text": t, "refs": refs,
+                          "fmt": fmt,
+                          "cite": tag == "blockquote"})
     return items
 
 
@@ -463,7 +511,8 @@ def build(path, book_id, lemmatize=True):
             n = 0
             reg["chapters"].append({"id": cur, "title": it["text"],
                                     "level": lvl,
-                                    "refs": it.get("refs", [])})
+                                    "refs": it.get("refs", []),
+                                    "fmt": it.get("fmt", [])})
             continue
         if it["kind"] == "mark":
             reg["marks"].append({"chapter": cur, "after": n,
@@ -474,6 +523,7 @@ def build(path, book_id, lemmatize=True):
         pid = f"{cur}.{n}"
         sids = []
         refs = it.get("refs", [])
+        fmts = it.get("fmt", [])
         for k, s in enumerate(sentenize(it["text"]), 1):
             sid = f"{pid}.{k}"
             nm = normalize(s.text)
@@ -485,6 +535,16 @@ def build(path, book_id, lemmatize=True):
                     for r in refs if s.start <= r["pos"] <= s.stop]
             if mine:
                 rec["notes"] = mine
+            # диапазон оформления обрезается по границам предложения:
+            # курсив может начаться в одном и кончиться в следующем
+            mf = []
+            for f in fmts:
+                a = max(f["pos"], s.start)
+                b = min(f["pos"] + f["len"], s.stop)
+                if b > a:
+                    mf.append({"pos": a - s.start, "len": b - a, "t": f["t"]})
+            if mf:
+                rec["fmt"] = mf
             if lemmatize:
                 rec["lemma"] = lemmas(nm)
             reg["sentences"].append(rec)
@@ -493,6 +553,10 @@ def build(path, book_id, lemmatize=True):
                  "text": it["text"], "sentences": sids}
         if it.get("cite"):
             rec_p["cite"] = True
+        if it.get("author"):
+            rec_p["author"] = True
+        if fmts:
+            rec_p["fmt"] = fmts
         reg["paragraphs"].append(rec_p)
 
     reg["chapters"] = [c for c in reg["chapters"]
@@ -720,6 +784,9 @@ p{margin:0 0 1.1em;text-align:justify;position:relative}
 p>.num{position:absolute;left:-4.6em;top:.25em;width:4em;text-align:right;
  font:.7rem/1.6 ui-monospace,monospace;color:var(--dim);user-select:none}
 p:has(span.s.hl)>.num{color:#c48a00;font-weight:700}
+em{font-style:italic}
+p.auth{margin-left:1.6em;padding-left:1em;text-align:right;font-size:.88em;
+ color:#666;font-style:italic}
 p.cite{margin-left:1.6em;padding-left:1em;border-left:2px solid #ddd;
  font-size:.96em;color:#333;text-align:left}
 span.s{scroll-margin-top:40vh}
@@ -1086,24 +1153,49 @@ def write_html(reg, out):
     notes = reg.get("notes", {})
     used = []
 
-    def render(t, refs, back):
-        """Текст с врезанными маркерами сносок. back — куда вернёт стрелка."""
-        if not refs:
+    def render(t, refs, fmts, back):
+        """
+        Текст с врезанным оформлением и маркерами сносок.
+
+        Собирается по событиям в позициях, а не вложенной заменой: курсив,
+        сноска и конец другого курсива могут прийтись на одну точку, и порядок
+        должен быть один — сначала закрыть, потом сноска, потом открыть.
+        """
+        if not refs and not fmts:
             return e(t)
-        parts, prev = [], 0
-        for r in sorted(refs, key=lambda x: x["pos"]):
-            pos = max(0, min(len(t), r["pos"]))
-            nid = r["note"]
-            nd = notes.get(nid) or {}
-            label = (nd.get("num") or "*").strip("[] ") or "*"
-            used.append((nid, label, back))
-            tip = e(nd.get("text", ""))[:400]
-            parts.append(e(t[prev:pos]))
-            parts.append(f'<sup class="nt"><a href="#{nid}" '
-                         f'title="{tip}">{e(label)}</a></sup>')
-            prev = pos
-        parts.append(e(t[prev:]))
-        return "".join(parts)
+        ev = {}
+        for f in fmts or []:
+            ev.setdefault(f["pos"], {"c": 0, "o": [], "n": []})["o"].append(f)
+            k = min(f["pos"] + f["len"], len(t))
+            ev.setdefault(k, {"c": 0, "o": [], "n": []})["c"] += 1
+        for r in refs or []:
+            k = max(0, min(r["pos"], len(t)))
+            ev.setdefault(k, {"c": 0, "o": [], "n": []})["n"].append(r)
+
+        out, stack, prev = [], [], 0
+        for i in sorted(ev):
+            out.append(e(t[prev:i]))
+            prev = i
+            v = ev[i]
+            for _ in range(v["c"]):
+                if stack:
+                    out.append("</" + stack.pop() + ">")
+            for r in v["n"]:
+                nid = r["note"]
+                nd = notes.get(nid) or {}
+                label = (nd.get("num") or "*").strip("[] ") or "*"
+                used.append((nid, label, back))
+                out.append(f'<sup class="nt"><a href="#{nid}" '
+                           f'title="{e(nd.get("text", ""))[:400]}">'
+                           f'{e(label)}</a></sup>')
+            for f in sorted(v["o"], key=lambda x: -x["len"]):
+                tag = FMT_TAG.get(f["t"], "span")
+                out.append("<" + tag + ">")
+                stack.append(tag)
+        out.append(e(t[prev:]))
+        while stack:
+            out.append("</" + stack.pop() + ">")
+        return "".join(out)
 
     L = ['<!doctype html><html lang="ru"><meta charset="utf-8">',
          '<meta name="viewport" content="width=device-width,initial-scale=1">',
@@ -1122,15 +1214,19 @@ def write_html(reg, out):
             t = ch.get("title", "")
             if t:
                 L.append(f'<h2 id="c{c}">'
-                         + render(t, ch.get("refs", []), f"c{c}") + "</h2>")
+                         + render(t, ch.get("refs", []), ch.get("fmt", []),
+                                  f"c{c}") + "</h2>")
         for mk in marks.get((c, p["n"] - 1), []):
             L.append(f"<h3>{e(mk)}</h3>")
         spans = " ".join(
             f'<span class="s" id="{sid}">'
-            + render(sent[sid]["text"], sent[sid].get("notes", []), sid)
+            + render(sent[sid]["text"], sent[sid].get("notes", []),
+                     sent[sid].get("fmt", []), sid)
             + "</span>"
             for sid in p["sentences"])
-        cls = ' class="cite"' if p.get("cite") else ""
+        cl = (["cite"] if p.get("cite") else []) + \
+             (["auth"] if p.get("author") else [])
+        cls = f' class="{" ".join(cl)}"' if cl else ""
         L.append(f'<p id="{p["id"]}"{cls}><span class="num">{p["id"]}</span>'
                  f'{spans}</p>')
 
@@ -1144,7 +1240,8 @@ def write_html(reg, out):
             nd = notes.get(nid) or {}
             L.append(f'<li id="{nid}"><a class="back" href="#{back}">'
                      f'{e(label)}</a> '
-                     + render(nd.get("text", ""), nd.get("refs", []), nid)
+                     + render(nd.get("text", ""), nd.get("refs", []),
+                              nd.get("fmt", []), nid)
                      + "</li>")
         L.append("</ol>")
     idx = [[s["id"], s["norm"]] for s in reg["sentences"]]
