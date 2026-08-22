@@ -1849,8 +1849,8 @@ def write_index(regs, out):
             f'<div class="a">{e(", ".join(b.get("authors") or []))}</div>'
             f'<div class="n">глав {ch} · абзацев {len(reg["paragraphs"])} · '
             f'предложений {len(reg["sentences"])} · '
-            + ('<span class="lock">нумерация заморожена</span>' if locked
-               else '<span class="nolock">не заморожено</span>')
+            + ('<span class="lock">номера закреплены</span>' if locked
+               else '<span class="nolock">номера ещё могут измениться</span>')
             + "</div></a>")
     Path(out).write_text(
         '<!doctype html><html lang="ru"><meta charset="utf-8">'
