@@ -1136,7 +1136,7 @@ function refreshTags(){
   }
   m.innerHTML = show.map(function(t){
     return '<div class="row" data-pick="' + t + '"><span>' + t + '</span>' +
-           '<b data-forget="' + t + '" title="забыть метку">×</b></div>';
+           '<b data-forget="' + t + '" title="Забыть метку">×</b></div>';
   }).join('') +
   (show.length ? '' : '<div class="none">Совпадений нет</div>') +
   '<div class="all" data-forgetall="1">Забыть все метки (' + tags.length + ')</div>';
@@ -1284,13 +1284,13 @@ function drawAcc(){
   acc.classList.toggle('on', bag.length > 0);
   if(!bag.length) return;
   acc.innerHTML =
-    '<span class="clr">собрано ' + bag.length + '</span>' +
+    '<span class="clr">Собрано: ' + bag.length + '</span>' +
     '<div class="list">' + bag.map(function(a, i){
       return '<span class="chip">' + a + '<b data-rm="' + i + '">×</b></span>';
     }).join('') + '</div>' +
     '<button data-t="К">К</button><button data-t="?">?</button>' +
     '<button data-t="М">М</button>' +
-    '<button class="clr" data-clear="1">очистить</button>';
+    '<button class="clr" data-clear="1">Очистить</button>';
 }
 function addToBag(){
   if(!cur.length) return;
@@ -1389,14 +1389,31 @@ function tapSentence(el){
 }
 addEventListener('scroll', function(){ if(cur.length) place(); }, {passive:true});
 
-/* placeholder длинный только пока есть место: иначе он обрезается
-   на полуслове и выглядит поломкой */
+/* Подсказка в поиске одна и та же везде, просто укорачивается ровно
+   настолько, насколько нужно. Раньше на узком экране появлялось «Поиск» —
+   другое слово, из-за чего казалось, что на телефоне другая программа.
+   Ширина замеряется по-настоящему, а не по порогам: шрифт и масштаб у всех
+   разные. */
+var PH = ['Найти цитату или номер — 1.14.2 …',
+          'Найти цитату или номер',
+          'Найти цитату'];
 function fitPlaceholder(){
   if(!q) return;
-  q.placeholder = q.offsetWidth < 230
-    ? 'Поиск' : 'Найти цитату или номер — 1.14.2 …';
+  var st = getComputedStyle(q);
+  var room = q.clientWidth
+           - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight) - 4;
+  var ctx = fitPlaceholder.ctx ||
+            (fitPlaceholder.ctx = document.createElement('canvas').getContext('2d'));
+  ctx.font = st.fontSize + ' ' + st.fontFamily;
+  for(var i = 0; i < PH.length; i++){
+    if(ctx.measureText(PH[i]).width <= room || i === PH.length - 1){
+      q.placeholder = PH[i];
+      return;
+    }
+  }
 }
 addEventListener('resize', fitPlaceholder);
+addEventListener('orientationchange', function(){ setTimeout(fitPlaceholder, 120); });
 
 /* ---------- клавиши: обе раскладки и цифры ---------- */
 /* «/» отдан поиску, а вопросу оставлены «2» и «?» (то есть Shift+/):
@@ -1429,9 +1446,14 @@ function applyHash_(){
   if(hashon) hashon.checked = useHash;
   if(!useHash) closeTags();
 }
+function setHash(on){
+  useHash = !!on;
+  save(KHASH, useHash);
+  applyHash_();
+}
 if(hashon){
   hashon.addEventListener('change', function(){
-    useHash = hashon.checked; save(KHASH, useHash); applyHash_();
+    setHash(hashon.checked);
     if(useHash && !cur.length) tagIn.focus();
   });
 }
@@ -1482,6 +1504,14 @@ document.addEventListener('pointerdown', function(e){
    уходит из поля, и дальше работают 1/2/3. Раньше Enter вставлял сразу
    и всегда как «К» — тип за человека выбирать нельзя. */
 tagIn && tagIn.addEventListener('keydown', function(e){
+  /* та же Shift+3 внутри поля — выключить метки и вернуться к тексту */
+  if(e.key === '#' || e.key === '№'){
+    e.preventDefault();
+    closeTags(); tagIn.blur(); barBusy = false;
+    setHash(false);
+    toast('Метки выключены');
+    return;
+  }
   if(e.key === 'Enter' || e.key === 'Escape'){
     e.preventDefault();
     rememberTag(tagIn.value.trim().replace(/^#+/, ''));
@@ -1629,12 +1659,12 @@ addEventListener('keydown', function(e){
 
   if(e.key === '/'){ e.preventDefault(); q && q.focus(); q && q.select(); return; }
 
-  /* «#» — Shift+3 в обеих раскладках, мнемонично и не спорит с «3».
-     Если метки выключены, заодно включаем: нажали — значит нужны. */
-  if(e.key === '#'){
+  /* Shift+3 — физически одна клавиша в обеих раскладках, но символ разный:
+     «#» на латинице, «№» на кириллице. Принимаем оба, чтобы не заставлять
+     переключать язык. Повторное нажатие в поле метки — выключает. */
+  if(e.key === '#' || e.key === '№'){
     e.preventDefault();
-    if(!useHash && hashon){ hashon.checked = true;
-      useHash = true; save(KHASH, useHash); applyHash_(); }
+    if(!useHash){ setHash(true); }
     tagIn && tagIn.focus(); tagIn && tagIn.select();
     return;
   }
@@ -1704,15 +1734,15 @@ def write_html(reg, out):
          '<meta name="viewport" content="width=device-width,initial-scale=1">',
          f'<title>{e(reg["book"]["title"])}</title>', f"<style>{CSS}</style>",
          '<div id="bar"><div class="in">'
-         '<a id="home" href="../index.html" title="список книг">&larr; книги</a>'
+         '<a id="home" href="../index.html" title="Список книг">&larr; Книги</a>'
          '<input id="q" placeholder="Найти цитату или номер — 1.14.2 …" '
          'autocomplete="off"><span id="cnt"></span>'
-         '<label id="hash" title="добавлять #метку в заметку">'
+         '<label id="hash" title="Добавлять метку в заметку">'
          '<input type="checkbox" id="hashon">метка</label>'
          '<span id="tagbox" style="display:none">'
-         '<input id="tag" placeholder="без метки" '
+         '<input id="tag" placeholder="Без метки" '
          'autocomplete="off">'
-         '<button id="tagx" title="очистить поле">&times;</button>'
+         '<button id="tagx" title="Очистить поле">&times;</button>'
          '<div id="tagmenu"></div></span></div>'
          '<div id="res"></div></div>',
          f'<h1>{e(reg["book"]["title"])}</h1>']

@@ -111,14 +111,14 @@ def build(md_path, title=None):
     doc_title = title or (re.sub(r"<[^>]+>", "", h1.group(1)) if h1 else
                           Path(md_path).stem)
 
-    home = '<a class="home" href="index.html">&larr; книги</a>'
+    home = '<a class="home" href="index.html">&larr; Книги</a>'
     return (f'<!doctype html><html lang="ru"><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{doc_title}</title><style>{CSS}</style>'
             f'<div class="wrap"><nav><div class="t">{doc_title}</div>'
             f'{home}{nav}</nav>'
             f'<main><div class="homebar">'
-            f'<a href="index.html">&larr; книги</a></div>'
+            f'<a href="index.html">&larr; Книги</a></div>'
             f'{body}</main></div>')
 
 
