@@ -29,6 +29,7 @@ bookreg.py — реестр глава/абзац/предложение для 
 """
 
 import argparse
+import base64
 import hashlib
 import html as html_mod
 import json
@@ -278,6 +279,10 @@ def _fb2_text(el, keep_refs=False):
 
 
 
+# картинки библиотек: экслибрис, логотип — тот же мусор, что и рекламный текст
+IMG_JUNK = re.compile(r"exlibris|fbw|royallib|litres|logo|banner", re.I)
+
+
 def read_fb2(path):
     ns = {"f": FB2NS}
     root = etree.parse(str(path)).getroot()
@@ -303,6 +308,12 @@ def read_fb2(path):
                 continue
             if tag == "subtitle":
                 items.append({"kind": "mark", "text": _fb2_text(el)})
+                continue
+            if tag == "image":
+                href = (el.get("{http://www.w3.org/1999/xlink}href")
+                        or el.get("href") or "").lstrip("#")
+                if href and not IMG_JUNK.search(href):
+                    items.append({"kind": "image", "href": href})
                 continue
             if tag not in ("p", "poem", "cite", "epigraph"):
                 continue
@@ -346,6 +357,13 @@ def read_fb2(path):
             notes[nid] = {"num": _fb2_text(ti) if ti is not None else "",
                           "text": body_t, "refs": refs, "fmt": fmt}
 
+    binaries = {}
+    for b in root.findall("f:binary", ns):
+        bid = b.get("id")
+        if bid and b.text:
+            binaries[bid] = (b.get("content-type", "image/jpeg"),
+                             b.text.strip())
+
     meta = {}
     ti = root.find(".//f:title-info", ns)
     if ti is not None:
@@ -356,6 +374,7 @@ def read_fb2(path):
                            for k in ("first-name", "middle-name", "last-name")
                            if a.find(f"f:{k}", ns) is not None))
             for a in ti.findall("f:author", ns)]
+    meta["binaries"] = binaries
     return items, notes, meta
 
 
@@ -421,8 +440,14 @@ def decode_bytes(raw):
 def drop_junk(items):
     """Реклама библиотеки. Только короткие блоки: в длинном абзаце
     совпадение почти наверняка ложное."""
-    return [i for i in items
-            if not (len(i["text"]) < 200 and JUNK.search(i["text"]))]
+    out = []
+    for i in items:
+        t = i.get("text")
+        if t is None:                       # картинка — текста нет
+            out.append(i)
+        elif not (len(t) < 200 and JUNK.search(t)):
+            out.append(i)
+    return out
 
 
 def demote_title_h1(items):
@@ -535,7 +560,7 @@ def build(path, book_id, lemmatize=True, typo_on=False):
                     "source_file": path.name,
                     "source_format": path.suffix.lower().lstrip(".")},
            "chapters": [], "paragraphs": [], "sentences": [],
-           "marks": [], "notes": notes}
+           "marks": [], "images": [], "notes": notes}
 
     counters, cur, n = [], "0", 0
     reg["chapters"].append({"id": "0", "title": "", "level": 0})
@@ -564,6 +589,12 @@ def build(path, book_id, lemmatize=True, typo_on=False):
         if it["kind"] == "mark":
             reg["marks"].append({"chapter": cur, "after": n,
                                  "text": it["text"]})
+            continue
+        if it["kind"] == "image":
+            # своего номера не получает: иначе добавление картинок сдвинуло бы
+            # нумерацию всех абзацев после неё
+            reg["images"].append({"chapter": cur, "after": n,
+                                  "href": it["href"]})
             continue
 
         if typo_on:
@@ -612,6 +643,7 @@ def build(path, book_id, lemmatize=True, typo_on=False):
                        if c["id"] == "0" or
                        any(p["chapter"] == c["id"] for p in reg["paragraphs"])
                        or c["title"]]
+    reg["_binaries"] = meta.get("binaries", {})
     reg["book"]["quotes"] = bool(typo_on)
     reg["book"]["text_sha256"] = hashlib.sha256(
         "\n".join(p["text"] for p in reg["paragraphs"]).encode()).hexdigest()
@@ -848,6 +880,9 @@ p:has(span.s.hl)>.num{color:#c48a00;font-weight:700}
 em{font-style:italic}
 p.auth{margin-left:1.6em;padding-left:1em;text-align:right;font-size:.88em;
  color:#666;font-style:italic}
+figure{margin:2rem 0;text-align:center}
+figure img{max-width:100%;height:auto;border-radius:4px;
+ box-shadow:0 1px 8px #0002}
 p.cite{margin-left:1.6em;padding-left:1em;border-left:2px solid #ddd;
  font-size:.96em;color:#333;text-align:left}
 span.s{scroll-margin-top:40vh}
@@ -1691,6 +1726,38 @@ addEventListener('keydown', function(e){
 refreshTags(); tagState(); applyHash_(); fitPlaceholder();
 })();
 """
+def write_images(reg, out):
+    """
+    Картинки кладутся отдельными файлами рядом с читалкой, а не встраиваются
+    в HTML. У «Манифеста» их 111 КБ — в base64 это 152 КБ поверх страницы,
+    и на книге с полусотней иллюстраций читалка стала бы неподъёмной.
+    Отдельные файлы к тому же кешируются браузером по одному.
+    """
+    used = {i["href"] for i in reg.get("images", [])}
+    if not used:
+        return {}
+    d = Path(out).parent / (reg["book"]["id"] + "_img")
+    d.mkdir(parents=True, exist_ok=True)
+    written = {}
+    for href in sorted(used):
+        got = reg.get("_binaries", {}).get(href)
+        if not got:
+            continue
+        ctype, data = got
+        ext = {"image/jpeg": ".jpg", "image/png": ".png",
+               "image/gif": ".gif", "image/svg+xml": ".svg",
+               "image/webp": ".webp"}.get(ctype, ".bin")
+        name = re.sub(r"[^\w.-]", "_", href)
+        if not name.lower().endswith(ext):
+            name = Path(name).stem + ext
+        try:
+            (d / name).write_bytes(base64.b64decode(data))
+        except Exception:
+            continue
+        written[href] = d.name + "/" + name
+    return written
+
+
 def write_html(reg, out):
     e = html_mod.escape
     chap = {c["id"]: c for c in reg["chapters"]}
@@ -1700,6 +1767,10 @@ def write_html(reg, out):
     sent = {s["id"]: s for s in reg["sentences"]}
     notes = reg.get("notes", {})
     used = []
+    imgs = write_images(reg, out)
+    pics = {}
+    for i in reg.get("images", []):
+        pics.setdefault((i["chapter"], i["after"]), []).append(i["href"])
 
     def render(t, refs, fmts, back):
         """
@@ -1774,6 +1845,10 @@ def write_html(reg, out):
                                   f"c{c}") + "</h2>")
         for mk in marks.get((c, p["n"] - 1), []):
             L.append(f"<h3>{e(mk)}</h3>")
+        for href in pics.get((c, p["n"] - 1), []):
+            if href in imgs:
+                L.append(f'<figure><img src="{imgs[href]}" alt="" '
+                         f'loading="lazy"></figure>')
         spans = " ".join(
             f'<span class="s" id="{sid}">'
             + render(sent[sid]["text"], sent[sid].get("notes", []),
@@ -1785,6 +1860,18 @@ def write_html(reg, out):
         cls = f' class="{" ".join(cl)}"' if cl else ""
         L.append(f'<p id="{p["id"]}"{cls}><span class="num">{p["id"]}</span>'
                  f'{spans}</p>')
+
+    # Картинка выводится перед абзацем с номером after+1. Если такого абзаца
+    # нет — она стоит в конце главы, и её нужно вывести отдельно, иначе она
+    # молча потеряется.
+    placed = {(p["chapter"], p["n"] - 1) for p in reg["paragraphs"]}
+    for (c, after), hrefs in sorted(pics.items()):
+        if (c, after) in placed:
+            continue
+        for href in hrefs:
+            if href in imgs:
+                L.append(f'<figure><img src="{imgs[href]}" alt="" '
+                         f'loading="lazy"></figure>')
 
     if used:
         L.append('<h2 id="notes">Примечания</h2><ol class="notes">')
@@ -1910,9 +1997,10 @@ def main():
         outdir.mkdir(parents=True, exist_ok=True)
         reg = build(src, bid, lemmatize=not a.no_lemma,
                     typo_on=a.quotes)
+        write_html(reg, outdir / f"{bid}.html")
+        reg.pop("_binaries", None)
         (outdir / f"{bid}.json").write_text(
             json.dumps(reg, ensure_ascii=False, indent=1), encoding="utf-8")
-        write_html(reg, outdir / f"{bid}.html")
         (outdir / f"{bid}.txt").write_text(
             "\n".join(f'{x["id"]}\t{x["text"]}' for x in reg["sentences"]),
             encoding="utf-8")
@@ -1954,9 +2042,10 @@ def main():
                 src, bid,
                 lemmatize=any("lemma" in x for x in old["sentences"][:1]),
                 typo_on=old["book"].get("quotes", False))
+            write_html(reg, d / f"{bid}.html")
+            reg.pop("_binaries", None)
             rp.write_text(json.dumps(reg, ensure_ascii=False, indent=1),
                           encoding="utf-8")
-            write_html(reg, d / f"{bid}.html")
             (d / f"{bid}.txt").write_text(
                 "\n".join(f'{x["id"]}\t{x["text"]}' for x in reg["sentences"]),
                 encoding="utf-8")

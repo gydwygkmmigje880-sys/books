@@ -7630,6 +7630,33 @@
    "text": "с) Немецкий, или «истинный», социализм"
   }
  ],
+ "images": [
+  {
+   "chapter": "0",
+   "after": 0,
+   "href": "cover.png"
+  },
+  {
+   "chapter": "1",
+   "after": 25,
+   "href": "marx.png"
+  },
+  {
+   "chapter": "1",
+   "after": 52,
+   "href": "engels.png"
+  },
+  {
+   "chapter": "2",
+   "after": 37,
+   "href": "page.png"
+  },
+  {
+   "chapter": "2",
+   "after": 87,
+   "href": "coverr.jpg"
+  }
+ ],
  "notes": {
   "n_1": {
    "num": "1",
