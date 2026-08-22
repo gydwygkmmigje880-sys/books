@@ -7,7 +7,13 @@ body{margin:0;background:var(--bg);color:var(--fg);
 
 nav{position:sticky;top:0;flex:0 0 17rem;max-height:100vh;overflow:auto;
  padding:2.5rem 1rem 3rem 1.5rem;font-size:.86rem;line-height:1.5}
-nav .t{font-weight:700;font-size:.95rem;margin-bottom:1rem}
+nav .t{font-weight:700;font-size:.95rem;margin-bottom:.4rem}
+nav .home{display:block;color:var(--acc);text-decoration:none;font-size:.85rem;
+ margin-bottom:1rem}
+nav .home:hover{text-decoration:underline}
+.homebar{display:none}
+@media(max-width:900px){.homebar{display:block;margin:0 0 1.2rem}
+ .homebar a{color:var(--acc);text-decoration:none;font-size:.9rem}}
 nav a{display:block;color:#555;text-decoration:none;padding:.24rem 0}
 nav a:hover{color:var(--acc)}
 nav a.sub{padding-left:1rem;font-size:.82rem;color:#777}
@@ -45,7 +51,7 @@ strong{font-weight:600}
   main{padding:1.6rem 1.2rem 6rem}
   table{display:block;overflow-x:auto}
 }
-</style><div class="wrap"><nav><div class="t">bookreg — документация</div><a href="#1-установка" class="">1. Установка</a><a href="#2-быстрый-старт" class="">2. Быстрый старт</a><a href="#3-команды" class="">3. Команды</a><a href="#build-собрать-реестр-из-книги" class="sub">build — собрать реестр из книги</a><a href="#check-проверить-качество-разбора" class="sub">check — проверить качество разбора</a><a href="#freeze-заморозить-нумерацию" class="sub">freeze — заморозить нумерацию</a><a href="#verify-что-съехало-после-правки" class="sub">verify — что съехало после правки</a><a href="#rebuild-пересобрать-все-книги-папки" class="sub">rebuild — пересобрать все книги папки</a><a href="#search-поиск-цитаты-из-терминала" class="sub">search — поиск цитаты из терминала</a><a href="#4-нумерация" class="">4. Нумерация</a><a href="#якоря" class="sub">Якоря</a><a href="#приведение-кавычек-по-желанию" class="sub">Приведение кавычек — по желанию</a><a href="#заморозка" class="sub">Заморозка</a><a href="#5-читалка" class="">5. Читалка</a><a href="#как-это-работает" class="sub">Как это работает</a><a href="#выбор-цитаты" class="sub">Выбор цитаты</a><a href="#три-кнопки" class="sub">Три кнопки</a><a href="#накопитель-несколько-цитат-к-одной-заметке" class="sub">Накопитель: несколько цитат к одной заметке</a><a href="#метки" class="sub">Метки</a><a href="#клавиши" class="sub">Клавиши</a><a href="#поиск-по-тексту" class="sub">Поиск по тексту</a><a href="#поиск-по-номеру" class="sub">Поиск по номеру</a><a href="#сноски-оформление-цитаты" class="sub">Сноски, оформление, цитаты</a><a href="#оговорка-про-file" class="sub">Оговорка про file://</a><a href="#6-выходные-файлы" class="">6. Выходные файлы</a><a href="#ltidgtjson-реестр" class="sub">&lt;id&gt;.json — реестр</a><a href="#ltidgthtml-читалка" class="sub">&lt;id&gt;.html — читалка</a><a href="#indexhtml-список-книг" class="sub">index.html — список книг</a><a href="#ltidgttxt-плоский-список" class="sub">&lt;id&gt;.txt — плоский список</a><a href="#ltidgtlockjson-замороженная-нумерация" class="sub">&lt;id&gt;.lock.json — замороженная нумерация</a><a href="#7-проверки-check" class="">7. Проверки check</a><a href="#ошибки-чинить-обязательно" class="sub">Ошибки — чинить обязательно</a><a href="#предупреждения-посмотреть-глазами" class="sub">Предупреждения — посмотреть глазами</a><a href="#справочно" class="sub">Справочно</a><a href="#как-читать-noend-и-lowstart" class="sub">Как читать noend и lowstart</a><a href="#8-форматы-книг" class="">8. Форматы книг</a><a href="#9-публикация-на-github-pages" class="">9. Публикация на GitHub Pages</a><a href="#разложить-репозиторий" class="sub">Разложить репозиторий</a><a href="#включить" class="sub">Включить</a><a href="#что-стоит-знать" class="sub">Что стоит знать</a><a href="#обновление" class="sub">Обновление</a><a href="#10-известные-ограничения" class="">10. Известные ограничения</a></nav><main><h1 id="bookreg-документация">bookreg — документация</h1>
+</style><div class="wrap"><nav><div class="t">bookreg — документация</div><a class="home" href="index.html">&larr; книги</a><a href="#1-установка" class="">1. Установка</a><a href="#2-быстрый-старт" class="">2. Быстрый старт</a><a href="#3-команды" class="">3. Команды</a><a href="#build-собрать-реестр-из-книги" class="sub">build — собрать реестр из книги</a><a href="#check-проверить-качество-разбора" class="sub">check — проверить качество разбора</a><a href="#freeze-заморозить-нумерацию" class="sub">freeze — заморозить нумерацию</a><a href="#verify-что-съехало-после-правки" class="sub">verify — что съехало после правки</a><a href="#rebuild-пересобрать-все-книги-папки" class="sub">rebuild — пересобрать все книги папки</a><a href="#search-поиск-цитаты-из-терминала" class="sub">search — поиск цитаты из терминала</a><a href="#4-нумерация" class="">4. Нумерация</a><a href="#якоря" class="sub">Якоря</a><a href="#приведение-кавычек-по-желанию" class="sub">Приведение кавычек — по желанию</a><a href="#заморозка" class="sub">Заморозка</a><a href="#5-читалка" class="">5. Читалка</a><a href="#навигация" class="sub">Навигация</a><a href="#как-это-работает" class="sub">Как это работает</a><a href="#выбор-цитаты" class="sub">Выбор цитаты</a><a href="#три-кнопки" class="sub">Три кнопки</a><a href="#накопитель-несколько-цитат-к-одной-заметке" class="sub">Накопитель: несколько цитат к одной заметке</a><a href="#метки" class="sub">Метки</a><a href="#клавиши" class="sub">Клавиши</a><a href="#поиск-по-тексту" class="sub">Поиск по тексту</a><a href="#поиск-по-номеру" class="sub">Поиск по номеру</a><a href="#сноски-оформление-цитаты" class="sub">Сноски, оформление, цитаты</a><a href="#оговорка-про-file" class="sub">Оговорка про file://</a><a href="#6-выходные-файлы" class="">6. Выходные файлы</a><a href="#ltidgtjson-реестр" class="sub">&lt;id&gt;.json — реестр</a><a href="#ltidgthtml-читалка" class="sub">&lt;id&gt;.html — читалка</a><a href="#indexhtml-список-книг" class="sub">index.html — список книг</a><a href="#ltidgttxt-плоский-список" class="sub">&lt;id&gt;.txt — плоский список</a><a href="#ltidgtlockjson-замороженная-нумерация" class="sub">&lt;id&gt;.lock.json — замороженная нумерация</a><a href="#7-проверки-check" class="">7. Проверки check</a><a href="#ошибки-чинить-обязательно" class="sub">Ошибки — чинить обязательно</a><a href="#предупреждения-посмотреть-глазами" class="sub">Предупреждения — посмотреть глазами</a><a href="#справочно" class="sub">Справочно</a><a href="#как-читать-noend-и-lowstart" class="sub">Как читать noend и lowstart</a><a href="#8-форматы-книг" class="">8. Форматы книг</a><a href="#9-публикация-на-github-pages" class="">9. Публикация на GitHub Pages</a><a href="#разложить-репозиторий" class="sub">Разложить репозиторий</a><a href="#включить" class="sub">Включить</a><a href="#что-стоит-знать" class="sub">Что стоит знать</a><a href="#обновление" class="sub">Обновление</a><a href="#10-известные-ограничения" class="">10. Известные ограничения</a></nav><main><div class="homebar"><a href="index.html">&larr; книги</a></div><h1 id="bookreg-документация">bookreg — документация</h1>
 <p>Инструмент читательского клуба. Разбирает книгу на главы, абзацы и предложения,
 присваивает каждому устойчивый номер и собирает читалку, в которой выделение
 мышкой превращается в готовую строку заметки со ссылкой на фрагмент.</p>
@@ -259,6 +265,10 @@ python3 bookreg.py freeze books/kapital.json
 зависимостей нет. Открывается двойным кликом или отдаётся хостингом.</p>
 <p>Смысл её один: превратить выделение мышкой в готовую строку заметки со ссылкой
 на фрагмент — быстрее, чем это делается копипастом вручную.</p>
+<h3 id="навигация">Навигация</h3>
+<p>В верхней строке читалки — ссылка «← книги» на <code>../index.html</code>, то есть на
+список книг. Она рассчитана на раскладку из раздела 9: читалки в <code>books/</code>,
+<code>index.html</code> уровнем выше. Если разложить иначе, ссылка не сработает.</p>
 <h3 id="как-это-работает">Как это работает</h3>
 <p><strong>Читаете с экрана.</strong> Выделили цитату → над ней всплыла панель → нажали <code>1</code>,
 <code>2</code> или <code>3</code> → в документе <code>Ctrl+V</code>. Три действия, из них два — нажатия клавиш.</p>
@@ -343,8 +353,14 @@ HTML-фрагмента считается незначащим и при вст
 поштучно), внизу «Забыть все метки» — очистить список целиком, с подтверждением.
 Уже вставленные в документ заметки при этом не меняются: список нужен только для
 подсказки при наборе.</p>
-<p><strong>Метки личные</strong>, у каждого свои: список лежит в браузере, а не в репозитории.
-Переключатель тоже запоминается — кому метки не нужны, тот их не видит.</p>
+<p><strong>Метки личные</strong>, у каждого свои: список лежит в браузере, а не в репозитории.</p>
+<p>Отсюда следствие, которое стоит знать: <code>localStorage</code> <strong>свой у каждого адреса</strong>.
+Метки, накопитель и положение галочки, заведённые при локальном открытии файла,
+на сайт не переезжают — и наоборот. На новом адресе всё начинается с чистого
+листа: галочка снята, список меток пуст. Это не потеря данных, просто другое
+хранилище.</p>
+<p>Поэтому поле метки не прячется, когда галочка снята, а гасится: иначе на новом
+адресе выглядело бы, будто возможности нет вовсе.</p>
 <h3 id="клавиши">Клавиши</h3>
 <table>
 <thead>

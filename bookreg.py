@@ -871,7 +871,10 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
 #bar{position:fixed;top:0;left:0;right:0;z-index:40;background:#fffffff2;
  backdrop-filter:blur(6px);border-bottom:1px solid #e5e5e5;padding:.5rem 1rem;
  font-family:system-ui,sans-serif}
-#bar .in{max-width:40em;margin:0 auto;display:flex;gap:.6rem;align-items:center}
+#bar .in{max-width:44em;margin:0 auto;display:flex;gap:.6rem;align-items:center}
+#home{color:var(--acc);text-decoration:none;font-size:.85rem;white-space:nowrap;
+ padding:.4rem .2rem}
+#home:hover{text-decoration:underline}
 #q{flex:1;font:.92rem system-ui,sans-serif;padding:.42rem .7rem;
  border:1px solid #ccc;border-radius:6px;outline:none}
 #q:focus{border-color:var(--acc)}
@@ -900,6 +903,8 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
 #tb .add{background:#ffffff26}
 #tb .add.has{background:#ffd47933;color:#ffd479}
 #tagbox{position:relative;display:flex;align-items:center}
+#tagbox.off{opacity:.45}
+#tagbox.off #tag{background:#f4f4f4;cursor:not-allowed}
 #tag{font:.85rem system-ui,sans-serif;width:9.5em;padding:.4rem 1.5rem .4rem .6rem;
  border:1px solid #ccc;border-radius:6px;outline:none;background:#fff}
 #tag:focus{border-color:var(--acc)}
@@ -1318,8 +1323,11 @@ addEventListener('keydown', function(e){
 var hashon = document.getElementById('hashon');
 var tagIn = document.getElementById('tag');
 function applyHash_(){
-  if(tagBox) tagBox.style.display = useHash ? '' : 'none';
-  else tagIn.style.display = useHash ? '' : 'none';
+  /* Поле не прячем, а гасим. Спрятанное поле означало бы, что на другом
+     домене возможности будто нет: localStorage у каждого origin свой, и
+     галочка, поставленная локально, на сайт не переезжает. */
+  if(tagBox) tagBox.classList.toggle('off', !useHash);
+  if(tagIn) tagIn.disabled = !useHash;
   if(hashon) hashon.checked = useHash;
 }
 if(hashon){
@@ -1580,6 +1588,7 @@ def write_html(reg, out):
          '<meta name="viewport" content="width=device-width,initial-scale=1">',
          f'<title>{e(reg["book"]["title"])}</title>', f"<style>{CSS}</style>",
          '<div id="bar"><div class="in">'
+         '<a id="home" href="../index.html" title="список книг">&larr; книги</a>'
          '<input id="q" placeholder="Найти цитату или номер — 1.14.2 …" '
          'autocomplete="off"><span id="cnt"></span>'
          '<label id="hash" title="добавлять #метку в заметку">'

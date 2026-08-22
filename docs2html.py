@@ -30,7 +30,13 @@ body{margin:0;background:var(--bg);color:var(--fg);
 
 nav{position:sticky;top:0;flex:0 0 17rem;max-height:100vh;overflow:auto;
  padding:2.5rem 1rem 3rem 1.5rem;font-size:.86rem;line-height:1.5}
-nav .t{font-weight:700;font-size:.95rem;margin-bottom:1rem}
+nav .t{font-weight:700;font-size:.95rem;margin-bottom:.4rem}
+nav .home{display:block;color:var(--acc);text-decoration:none;font-size:.85rem;
+ margin-bottom:1rem}
+nav .home:hover{text-decoration:underline}
+.homebar{display:none}
+@media(max-width:900px){.homebar{display:block;margin:0 0 1.2rem}
+ .homebar a{color:var(--acc);text-decoration:none;font-size:.9rem}}
 nav a{display:block;color:#555;text-decoration:none;padding:.24rem 0}
 nav a:hover{color:var(--acc)}
 nav a.sub{padding-left:1rem;font-size:.82rem;color:#777}
@@ -105,11 +111,15 @@ def build(md_path, title=None):
     doc_title = title or (re.sub(r"<[^>]+>", "", h1.group(1)) if h1 else
                           Path(md_path).stem)
 
+    home = '<a class="home" href="index.html">&larr; книги</a>'
     return (f'<!doctype html><html lang="ru"><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{doc_title}</title><style>{CSS}</style>'
-            f'<div class="wrap"><nav><div class="t">{doc_title}</div>{nav}</nav>'
-            f'<main>{body}</main></div>')
+            f'<div class="wrap"><nav><div class="t">{doc_title}</div>'
+            f'{home}{nav}</nav>'
+            f'<main><div class="homebar">'
+            f'<a href="index.html">&larr; книги</a></div>'
+            f'{body}</main></div>')
 
 
 def main():

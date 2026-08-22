@@ -39,7 +39,10 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
 #bar{position:fixed;top:0;left:0;right:0;z-index:40;background:#fffffff2;
  backdrop-filter:blur(6px);border-bottom:1px solid #e5e5e5;padding:.5rem 1rem;
  font-family:system-ui,sans-serif}
-#bar .in{max-width:40em;margin:0 auto;display:flex;gap:.6rem;align-items:center}
+#bar .in{max-width:44em;margin:0 auto;display:flex;gap:.6rem;align-items:center}
+#home{color:var(--acc);text-decoration:none;font-size:.85rem;white-space:nowrap;
+ padding:.4rem .2rem}
+#home:hover{text-decoration:underline}
 #q{flex:1;font:.92rem system-ui,sans-serif;padding:.42rem .7rem;
  border:1px solid #ccc;border-radius:6px;outline:none}
 #q:focus{border-color:var(--acc)}
@@ -68,6 +71,8 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
 #tb .add{background:#ffffff26}
 #tb .add.has{background:#ffd47933;color:#ffd479}
 #tagbox{position:relative;display:flex;align-items:center}
+#tagbox.off{opacity:.45}
+#tagbox.off #tag{background:#f4f4f4;cursor:not-allowed}
 #tag{font:.85rem system-ui,sans-serif;width:9.5em;padding:.4rem 1.5rem .4rem .6rem;
  border:1px solid #ccc;border-radius:6px;outline:none;background:#fff}
 #tag:focus{border-color:var(--acc)}
@@ -120,7 +125,7 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
 #ok.on{opacity:.94}
 @media print{#bar,#tb,#ok{display:none!important}body{padding-top:1rem}}
 </style>
-<div id="bar"><div class="in"><input id="q" placeholder="Найти цитату или номер — 1.14.2 …" autocomplete="off"><span id="cnt"></span><label id="hash" title="добавлять #метку в заметку"><input type="checkbox" id="hashon">метка</label><span id="tagbox"><input id="tag" placeholder="без метки" autocomplete="off"><button id="tagx" title="очистить поле">&times;</button><div id="tagmenu"></div></span></div><div id="res"></div></div>
+<div id="bar"><div class="in"><a id="home" href="../index.html" title="список книг">&larr; книги</a><input id="q" placeholder="Найти цитату или номер — 1.14.2 …" autocomplete="off"><span id="cnt"></span><label id="hash" title="добавлять #метку в заметку"><input type="checkbox" id="hashon">метка</label><span id="tagbox"><input id="tag" placeholder="без метки" autocomplete="off"><button id="tagx" title="очистить поле">&times;</button><div id="tagmenu"></div></span></div><div id="res"></div></div>
 <h1>Манифест Коммунистической партии</h1>
 <p id="0.1"><span class="num">0.1</span><span class="s" id="0.1.1"><em>Титульный лист первого издания «Манифеста Коммунистической партии»</em><sup class="nt"><a href="#n_1" title="«Манифест Коммунистической партии» – величайший программный документ научного коммунизма. «Эта небольшая книжечка стоит целых томов: духом ее живет и движется до сих пор весь организованный и борющийся пролетариат цивилизованного мира» (Ленин). Написанный К. Марксом и Ф. Энгельсом в качестве программы Союза коммунистов, «Манифест Коммунистической партии» был впервые опубликован в Лондоне в феврале">1</a></sup></span></p>
 <p id="0.2"><span class="num">0.2</span><span class="s" id="0.2.1">Призрак бродит по Европе – призрак коммунизма.</span> <span class="s" id="0.2.2">Все силы старой Европы объединились для священной травли этого призрака: папа и царь, Меттерних<sup class="nt"><a href="#n_2" title="Меттерних (Metternich), Клеменс, князь (1773—1859) – австрийский государственный деятель и дипломат, министр иностранных дел (1809—1821) и канцлер (1821—1848), ярый реакционер, один из организаторов Священного союза.">2</a></sup> и Гизо<sup class="nt"><a href="#n_3" title="Гизо (Guizot), Франсуа Пьер Гийом (1787—1874) – французский буржуазный историк и государственный деятель, с 1840 по 1848 г. фактически руководил внутренней и внешней политикой, выражал интересы крупной финансовой буржуазии.">3</a></sup>, французские радикалы и немецкие полицейские.</span></p>
@@ -759,8 +764,11 @@ addEventListener('keydown', function(e){
 var hashon = document.getElementById('hashon');
 var tagIn = document.getElementById('tag');
 function applyHash_(){
-  if(tagBox) tagBox.style.display = useHash ? '' : 'none';
-  else tagIn.style.display = useHash ? '' : 'none';
+  /* Поле не прячем, а гасим. Спрятанное поле означало бы, что на другом
+     домене возможности будто нет: localStorage у каждого origin свой, и
+     галочка, поставленная локально, на сайт не переезжает. */
+  if(tagBox) tagBox.classList.toggle('off', !useHash);
+  if(tagIn) tagIn.disabled = !useHash;
   if(hashon) hashon.checked = useHash;
 }
 if(hashon){
