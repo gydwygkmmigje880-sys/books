@@ -852,6 +852,12 @@ p.cite{margin-left:1.6em;padding-left:1em;border-left:2px solid #ddd;
  font-size:.96em;color:#333;text-align:left}
 span.s{scroll-margin-top:40vh}
 span.s:target,span.s.hl{background:var(--hi)}
+/* Бледная заливка — что попадёт в ссылку (всегда целое предложение,
+   на половину сослаться нельзя). Поверх — накладка на том, что реально
+   выделено мышкой. Два разных факта, два разных цвета. */
+span.s.pick{background:#eef4fd;box-shadow:inset 0 -1px 0 #b9d0ee}
+.rawsel{position:absolute;background:rgba(120,170,255,.34);border-radius:2px;
+ pointer-events:none;z-index:1;mix-blend-mode:multiply}
 sup.nt{font-size:.62em;line-height:0;user-select:none}
 sup.nt a{color:var(--acc);text-decoration:none;padding:0 .15em}
 ol.notes{margin-top:1rem;font-size:.9rem;color:#444;list-style:none;padding:0}
@@ -891,7 +897,55 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
  .42rem .5rem;align-self:center}
 #tb .trg{color:#bbb;font-size:.78rem;max-width:11em;overflow:hidden;
  text-overflow:ellipsis}
-#ok{position:fixed;left:50%;bottom:2rem;transform:translateX(-50%);z-index:60;
+#tb .add{background:#ffffff26}
+#tb .add.has{background:#ffd47933;color:#ffd479}
+#tagbox{position:relative;display:flex;align-items:center}
+#tag{font:.85rem system-ui,sans-serif;width:9.5em;padding:.4rem 1.5rem .4rem .6rem;
+ border:1px solid #ccc;border-radius:6px;outline:none;background:#fff}
+#tag:focus{border-color:var(--acc)}
+#tag::placeholder{color:#aaa}
+#tagx{position:absolute;right:.35rem;border:0;background:0;cursor:pointer;
+ color:#aaa;font-size:1rem;line-height:1;padding:.1rem .2rem;display:none}
+#tagx:hover{color:#333}
+#tagbox.filled #tagx{display:block}
+#tagmenu{position:absolute;top:calc(100% + .3rem);right:0;min-width:12rem;
+ max-height:15rem;overflow:auto;background:#fff;border:1px solid #ddd;
+ border-radius:8px;box-shadow:0 6px 20px #0002;z-index:50;display:none;
+ padding:.25rem;font:.85rem system-ui,sans-serif}
+#tagmenu.on{display:block}
+#tagmenu .row{display:flex;align-items:center;gap:.4rem;padding:.34rem .5rem;
+ border-radius:5px;cursor:pointer}
+#tagmenu .row:hover{background:#f2ede3}
+#tagmenu .row span{flex:1;overflow:hidden;text-overflow:ellipsis;
+ white-space:nowrap}
+#tagmenu .row b{color:#bbb;font-weight:400;padding:0 .25rem}
+#tagmenu .row b:hover{color:#c33}
+#tagmenu .all{border-top:1px solid #eee;margin-top:.25rem;padding:.4rem .5rem;
+ color:#c33;cursor:pointer;font-size:.8rem;border-radius:5px}
+#tagmenu .all:hover{background:#fdeeee}
+#tagmenu .none{padding:.4rem .5rem;color:#999;font-size:.8rem}
+
+/* --- накопитель цитат --- */
+#acc{position:fixed;left:50%;bottom:1.1rem;transform:translateX(-50%);z-index:45;
+ display:none;align-items:center;gap:.45rem;max-width:min(94vw,50rem);
+ padding:.45rem .55rem;background:#1a1a1a;border-radius:11px;
+ box-shadow:0 6px 22px #0005;font:.84rem system-ui,sans-serif;color:#fff}
+#acc.on{display:flex}
+#acc .list{display:flex;gap:.3rem;overflow-x:auto;max-width:26rem;padding:.1rem}
+#acc .chip{display:flex;align-items:center;gap:.3rem;white-space:nowrap;
+ background:#ffffff1a;border-radius:6px;padding:.28rem .3rem .28rem .5rem;
+ font:.74rem ui-monospace,monospace;color:#ffd479}
+#acc .chip b{cursor:pointer;color:#ffffff8c;font-weight:400;padding:0 .25rem}
+#acc .chip b:hover{color:#fff}
+#acc button{font:.83rem system-ui,sans-serif;color:#fff;background:#ffffff1a;
+ border:0;border-radius:6px;padding:.36rem .58rem;cursor:pointer}
+#acc button:hover{background:#ffffff33}
+#acc .clr{color:#ffffff8c;font-size:.78rem}
+
+#hash{display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:#666;
+ cursor:pointer;user-select:none;white-space:nowrap}
+#hash input{accent-color:var(--acc)}
+#ok{position:fixed;left:50%;bottom:5.2rem;transform:translateX(-50%);z-index:60;
  background:#1a1a1a;color:#fff;padding:.55rem 1rem;border-radius:8px;
  font:.85rem system-ui,sans-serif;opacity:0;transition:opacity .18s;
  pointer-events:none}
@@ -993,7 +1047,7 @@ function picked(){
 
 /* триггер для М: если выделена часть предложения — берём именно её */
 function trigger(list){
-  var raw = getSelection().toString().replace(/\s+/g,' ').trim();
+  var raw = (getSelection().toString() || lastRaw).replace(/\s+/g,' ').trim();
   var full = list.map(function(e){ return e.textContent; })
                  .join(' ').replace(/\s+/g,' ').trim();
   var t = (raw && raw.length < full.length) ? raw : full;
@@ -1004,68 +1058,332 @@ function trigger(list){
 /* ---------- панель над выделением ---------- */
 var tb = document.createElement('div'); tb.id = 'tb';
 tb.innerHTML = '<span class="anc"></span>' +
+  '<button class="add" data-add="1">+ <kbd>+</kbd></button>' +
   '<button data-t="К">К <kbd>1</kbd></button>' +
   '<button data-t="?">? <kbd>2</kbd></button>' +
   '<button data-t="М">М <span class="trg"></span><kbd>3</kbd></button>';
 document.body.appendChild(tb);
+var acc = document.createElement('div'); acc.id = 'acc';
+document.body.appendChild(acc);
 var ok = document.createElement('div'); ok.id = 'ok';
 document.body.appendChild(ok);
 
-var cur = [];
-function hide(){ tb.classList.remove('on'); cur = []; }
+/* ---------- личное хранилище ----------
+   Накопитель и метки не общие: у каждого участника свои, поэтому лежат
+   в браузере, а не в репозитории. Накопитель переживает перезагрузку —
+   собранные цитаты легко потерять случайным обновлением страницы. */
+var KACC = 'br.acc.' + BOOK, KTAG = 'br.tags', KHASH = 'br.hash';
+function ls(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; }
+                   catch(e){ return d; } }
+function save(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); }
+                     catch(e){} }
+
+var bag = ls(KACC, []);          /* якоря в накопителе */
+var tags = ls(KTAG, []);         /* использованные метки */
+var useHash = ls(KHASH, false);
+
+/* Свой список вместо <datalist>: тот не даёт удалять записи по одной, а
+   именно это и нужно — за полгода в личных метках копятся опечатки. */
+function refreshTags(){
+  var m = document.getElementById('tagmenu');
+  if(!m) return;
+  var q = (document.getElementById('tag').value || '').trim().toLowerCase();
+  var show = tags.filter(function(t){ return !q || t.toLowerCase().indexOf(q) >= 0; });
+  if(!tags.length){
+    m.innerHTML = '<div class="none">Меток пока нет — впишите первую</div>';
+    return;
+  }
+  m.innerHTML = show.map(function(t){
+    return '<div class="row" data-pick="' + t + '"><span>' + t + '</span>' +
+           '<b data-forget="' + t + '" title="забыть метку">×</b></div>';
+  }).join('') +
+  (show.length ? '' : '<div class="none">Совпадений нет</div>') +
+  '<div class="all" data-forgetall="1">Забыть все метки (' + tags.length + ')</div>';
+}
+function rememberTag(t){
+  if(!t) return;
+  tags = [t].concat(tags.filter(function(x){ return x !== t; })).slice(0, 60);
+  save(KTAG, tags); refreshTags();
+}
+function forgetTag(t){
+  tags = tags.filter(function(x){ return x !== t; });
+  save(KTAG, tags); refreshTags();
+}
+
+var cur = [];          /* выбранные предложения — своё состояние, не выделение */
+var lastRaw = '';      /* что именно было выделено внутри предложения */
+
+/* Клик в поле метки или поиска снимает системное выделение — это поведение
+   браузера, отменить его нельзя. Поэтому выбор хранится сам по себе и
+   подсвечивается своим классом: визуально ничего не пропадает, и всё, что
+   нужно для вставки, уже посчитано. */
+function markPick(list){
+  SENT.forEach(function(e){ e.classList.remove('pick'); });
+  (list || []).forEach(function(e){ e.classList.add('pick'); });
+}
+
+/* Накладка поверх выделенного куска. Рисуется прямоугольниками из
+   range.getClientRects(), а не оборачиванием в тег: DOM не трогается,
+   значит не ломается ни разметка курсива, ни разбиение на предложения.
+   Координаты документные, поэтому накладка едет вместе с текстом. */
+function drawRaw(range){
+  clearRaw();
+  if(!range) return;
+  var rects = range.getClientRects();
+  for(var i = 0; i < rects.length; i++){
+    var r = rects[i];
+    if(r.width < 1 || r.height < 1) continue;
+    var d = document.createElement('div');
+    d.className = 'rawsel';
+    d.style.left = (r.left + scrollX) + 'px';
+    d.style.top = (r.top + scrollY) + 'px';
+    d.style.width = r.width + 'px';
+    d.style.height = r.height + 'px';
+    document.body.appendChild(d);
+  }
+}
+function clearRaw(){
+  var old = document.querySelectorAll('.rawsel');
+  for(var i = 0; i < old.length; i++) old[i].remove();
+}
+
+function hide(){
+  tb.classList.remove('on');
+  cur = []; lastRaw = '';
+  markPick([]); clearRaw();
+}
+
+/* Панель ставится по координатам самих предложений, а не выделения:
+   выделения может уже не быть, а предложения на месте всегда. */
+function place(){
+  if(!cur.length) return;
+  var a = cur[0].getBoundingClientRect();
+  var b = cur[cur.length - 1].getBoundingClientRect();
+  var top = Math.min(a.top, b.top), bottom = Math.max(a.bottom, b.bottom);
+  var left = cur.length === 1 ? a.left : Math.min(a.left, b.left);
+  var right = cur.length === 1 ? a.right : Math.max(a.right, b.right);
+  var w = tb.offsetWidth, h = tb.offsetHeight;
+  var x = Math.min(Math.max(8, (left + right) / 2 - w / 2), innerWidth - w - 8);
+  var y = top - h - 8;
+  tb.style.left = (x + scrollX) + 'px';
+  tb.style.top = ((y > 4 ? y : bottom + 8) + scrollY) + 'px';
+}
 
 function show(){
   var list = picked();
-  if(!list.length){ hide(); return; }
+  if(!list.length) return;        /* пусто — просто ничего не меняем */
   cur = list;
+  var sel = getSelection();
+  lastRaw = sel.toString();
+  markPick(list);
+  drawRaw(sel.rangeCount ? sel.getRangeAt(0) : null);
   tb.querySelector('.anc').textContent = anchorFor(list);
   tb.querySelector('.trg').textContent = '«' + trigger(list) + '»';
+  tb.querySelector('.add').classList.toggle('has', bag.length > 0);
   tb.classList.add('on');
-  var r = getSelection().getRangeAt(0).getBoundingClientRect();
-  var w = tb.offsetWidth, h = tb.offsetHeight;
-  var x = Math.min(Math.max(8, r.left + r.width/2 - w/2),
-                   innerWidth - w - 8);
-  var y = r.top - h - 8;
-  var above = y > 4;
-  tb.style.left = (x + scrollX) + 'px';
-  tb.style.top  = ((above ? y : r.bottom + 8) + scrollY) + 'px';
+  place();
 }
 
 function toast(t){ ok.textContent = t; ok.classList.add('on');
   clearTimeout(ok._t); ok._t = setTimeout(function(){ ok.classList.remove('on'); }, 1400); }
 
+/* Якоря для вставки: сначала накопленные, потом текущее выделение.
+   Один путь на оба случая, чтобы поведение не зависело от того, откуда
+   нажали — из панели над текстом или из полоски накопителя. */
+function anchors(){
+  var a = bag.slice();
+  if(cur.length){
+    var one = anchorFor(cur);
+    if(a.indexOf(one) < 0) a.push(one);
+  }
+  return a;
+}
+
 function emit(type){
-  if(!cur.length) return;
-  var anc = anchorFor(cur), url = BASE + '#' + anc;
-  var tail = type === 'М' ? ' «' + trigger(cur) + '»' : '';
-  /* &nbsp;, а не пробел: обычный пробел в конце HTML-фрагмента считается
-     незначащим и при вставке в Docs схлопывается — курсор прилипает к скобке */
-  var html = type + ' [<a href="' + url + '">' + anc + '</a>]' + tail + '&nbsp;';
-  var text = type + ' [' + anc + '](' + url + ')' + tail + ' ';
+  var list = anchors();
+  if(!list.length) return;
+  var tag = useHash ? (document.getElementById('tag').value || '')
+                        .trim().replace(/^#+/, '') : null;
+  /* метка у М со многими цитатами вместо триггера: три цитаты не держатся
+     на одном обороте, и выписывать три триггера бессмысленно */
+  var tail = (type === 'М' && list.length === 1 && cur.length)
+             ? ' «' + trigger(cur) + '»' : '';
+  var hash = useHash ? ' #' + tag : '';
+
+  var links = list.map(function(a){
+    return '[<a href="' + BASE + '#' + a + '">' + a + '</a>]';
+  }).join(' ');
+  var plain = list.map(function(a){
+    return '[' + a + '](' + BASE + '#' + a + ')';
+  }).join(' ');
+
+  /* Метка включена, но не задана — строка кончается решёткой без пробела,
+     чтобы метку можно было дописать прямо в документе, вплотную к #.
+     Иначе — &nbsp;, а не пробел: обычный пробел в конце HTML-фрагмента
+     считается незначащим и при вставке в Docs схлопывается. */
+  var open = useHash && !tag;
+  var html = type + ' ' + links + tail + hash + (open ? '' : '&nbsp;');
+  var text = type + ' ' + plain + tail + hash + (open ? '' : ' ');
   copyBoth(html, text).then(function(){
-    toast('Скопировано:  ' + type + ' ' + anc + tail);
+    rememberTag(tag);
+    toast('Скопировано:  ' + type + ' ' + list.join(' ') + hash);
+    if(bag.length){ bag = []; save(KACC, bag); drawAcc(); }
+    getSelection().removeAllRanges(); hide();
   });
 }
 
+/* ---------- накопитель ---------- */
+function drawAcc(){
+  acc.classList.toggle('on', bag.length > 0);
+  if(!bag.length) return;
+  acc.innerHTML =
+    '<span class="clr">собрано ' + bag.length + '</span>' +
+    '<div class="list">' + bag.map(function(a, i){
+      return '<span class="chip">' + a + '<b data-rm="' + i + '">×</b></span>';
+    }).join('') + '</div>' +
+    '<button data-t="К">К</button><button data-t="?">?</button>' +
+    '<button data-t="М">М</button>' +
+    '<button class="clr" data-clear="1">очистить</button>';
+}
+function addToBag(){
+  if(!cur.length) return;
+  var a = anchorFor(cur);
+  if(bag.indexOf(a) < 0){ bag.push(a); save(KACC, bag); }
+  drawAcc();
+  toast('В накопителе: ' + bag.length);
+  getSelection().removeAllRanges(); hide();
+}
+acc.addEventListener('mousedown', function(e){ e.preventDefault(); });
+acc.addEventListener('click', function(e){
+  var rm = e.target.closest('[data-rm]');
+  if(rm){ bag.splice(+rm.dataset.rm, 1); save(KACC, bag); drawAcc(); return; }
+  if(e.target.closest('[data-clear]')){ bag = []; save(KACC, bag); drawAcc(); return; }
+  var b = e.target.closest('button[data-t]');
+  if(b) emit(b.dataset.t);
+});
+drawAcc();
+
 tb.addEventListener('mousedown', function(e){ e.preventDefault(); });
 tb.addEventListener('click', function(e){
-  var b = e.target.closest('button');
+  if(e.target.closest('[data-add]')){ addToBag(); return; }
+  var b = e.target.closest('button[data-t]');
   if(b) emit(b.dataset.t);
 });
 
+
+/* Клик в верхнюю строку снимает выделение в тексте. Проверять
+   document.activeElement в selectionchange бесполезно: выделение снимается
+   раньше, чем переезжает фокус. Поэтому флаг взводится на pointerdown —
+   он приходит до всего остального. */
+var barBusy = false;
+var bar = document.getElementById('bar');
+bar && bar.addEventListener('pointerdown', function(){ barBusy = true; });
+bar && bar.addEventListener('focusout', function(){
+  setTimeout(function(){
+    if(!document.activeElement || !document.activeElement.closest('#bar'))
+      barBusy = false;
+  }, 0);
+});
 document.addEventListener('selectionchange', function(){
+  if(barBusy) return;
   clearTimeout(show._t); show._t = setTimeout(show, 60);
 });
-addEventListener('scroll', function(){ if(cur.length) show(); }, {passive:true});
+/* Явный сброс: щелчок по тексту без протяжки. Только так выбор снимается
+   сам — всё остальное (фокус в поле, прокрутка) его не трогает. */
+document.addEventListener('pointerup', function(e){
+  if(e.target.closest('#bar,#tb,#acc')) return;
+  setTimeout(function(){
+    var s = getSelection();
+    if(cur.length && (!s.rangeCount || s.isCollapsed)) hide();
+  }, 10);
+});
+addEventListener('scroll', function(){ if(cur.length) place(); }, {passive:true});
 
 /* ---------- клавиши: обе раскладки и цифры ---------- */
 var KEY = { '1':'К','k':'К','к':'К', '2':'?','?':'?','/':'?', '3':'М','m':'М','м':'М' };
+var ADD = { '+':1, '=':1, '0':1 };
 addEventListener('keydown', function(e){
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   if(/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  if(ADD[e.key] && cur.length){ e.preventDefault(); addToBag(); return; }
   var t = KEY[e.key.toLowerCase()];
-  if(t && cur.length){ e.preventDefault(); emit(t); }
-  if(e.key === 'Escape'){ getSelection().removeAllRanges(); hide(); }
+  if(t && (cur.length || bag.length)){ e.preventDefault(); emit(t); }
+  if(e.key === 'Escape'){
+    if(cur.length){ getSelection().removeAllRanges(); hide(); }
+    else if(bag.length){ bag = []; save(KACC, bag); drawAcc(); }
+  }
+});
+
+/* ---------- переключатель меток ---------- */
+var hashon = document.getElementById('hashon');
+var tagIn = document.getElementById('tag');
+function applyHash_(){
+  if(tagBox) tagBox.style.display = useHash ? '' : 'none';
+  else tagIn.style.display = useHash ? '' : 'none';
+  if(hashon) hashon.checked = useHash;
+}
+if(hashon){
+  hashon.addEventListener('change', function(){
+    useHash = hashon.checked; save(KHASH, useHash); applyHash_();
+    if(useHash && !cur.length) tagIn.focus();
+  });
+}
+refreshTags(); tagState(); applyHash_();
+
+/* ---------- выпадающий список меток ---------- */
+var tagBox = document.getElementById('tagbox');
+var tagMenu = document.getElementById('tagmenu');
+var tagX = document.getElementById('tagx');
+
+function tagState(){
+  if(tagBox) tagBox.classList.toggle('filled', !!tagIn.value.trim());
+}
+function openTags(){ refreshTags(); tagMenu && tagMenu.classList.add('on'); }
+function closeTags(){ tagMenu && tagMenu.classList.remove('on'); }
+
+tagIn && tagIn.addEventListener('focus', openTags);
+tagIn && tagIn.addEventListener('input', function(){ tagState(); openTags(); });
+
+tagX && tagX.addEventListener('click', function(e){
+  e.preventDefault();
+  tagIn.value = ''; tagState(); refreshTags(); tagIn.focus();
+});
+
+tagMenu && tagMenu.addEventListener('mousedown', function(e){ e.preventDefault(); });
+tagMenu && tagMenu.addEventListener('click', function(e){
+  var f = e.target.closest('[data-forget]');
+  if(f){ forgetTag(f.dataset.forget); return; }
+  if(e.target.closest('[data-forgetall]')){
+    if(confirm('Забыть все метки? Уже вставленные заметки не изменятся.')){
+      tags = []; save(KTAG, tags); refreshTags();
+    }
+    return;
+  }
+  var r = e.target.closest('[data-pick]');
+  if(r){
+    tagIn.value = r.dataset.pick; tagState(); closeTags();
+    rememberTag(tagIn.value);
+    tagIn.blur(); barBusy = false;
+  }
+});
+
+document.addEventListener('pointerdown', function(e){
+  if(!e.target.closest('#tagbox')) closeTags();
+});
+
+/* Enter в поле метки только закрывает набор: метка запоминается, фокус
+   уходит из поля, и дальше работают 1/2/3. Раньше Enter вставлял сразу
+   и всегда как «К» — тип за человека выбирать нельзя. */
+tagIn && tagIn.addEventListener('keydown', function(e){
+  if(e.key === 'Enter' || e.key === 'Escape'){
+    e.preventDefault();
+    rememberTag(tagIn.value.trim().replace(/^#+/, ''));
+    tagState(); closeTags();
+    tagIn.blur();
+    barBusy = false;
+    if(cur.length) toast('Метка: ' + (tagIn.value.trim() || '—') +
+                         '   теперь 1, 2 или 3');
+  }
 });
 
 /* ---------- поиск (чтение с бумаги) ---------- */
@@ -1263,7 +1581,13 @@ def write_html(reg, out):
          f'<title>{e(reg["book"]["title"])}</title>', f"<style>{CSS}</style>",
          '<div id="bar"><div class="in">'
          '<input id="q" placeholder="Найти цитату или номер — 1.14.2 …" '
-         'autocomplete="off"><span id="cnt"></span></div>'
+         'autocomplete="off"><span id="cnt"></span>'
+         '<label id="hash" title="добавлять #метку в заметку">'
+         '<input type="checkbox" id="hashon">метка</label>'
+         '<span id="tagbox"><input id="tag" placeholder="без метки" '
+         'autocomplete="off">'
+         '<button id="tagx" title="очистить поле">&times;</button>'
+         '<div id="tagmenu"></div></span></div>'
          '<div id="res"></div></div>',
          f'<h1>{e(reg["book"]["title"])}</h1>']
     seen = set()
@@ -1306,6 +1630,8 @@ def write_html(reg, out):
                      + "</li>")
         L.append("</ol>")
     idx = [[s["id"], s["norm"]] for s in reg["sentences"]]
+    L.append("<script>var BOOK=" +
+             json.dumps(reg["book"]["id"]) + ";</script>")
     L.append("<script>var IDX=" +
              json.dumps(idx, ensure_ascii=False, separators=(",", ":")) +
              ";</script>")
