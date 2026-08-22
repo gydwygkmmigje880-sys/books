@@ -123,7 +123,7 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
 #ok.on{opacity:.94}
 @media print{#bar,#tb,#ok{display:none!important}body{padding-top:1rem}}
 </style>
-<div id="bar"><div class="in"><a id="home" href="../index.html" title="список книг">&larr; книги</a><input id="q" placeholder="Найти цитату или номер — 1.14.2 …" autocomplete="off"><span id="cnt"></span><label id="hash" title="добавлять #метку в заметку"><input type="checkbox" id="hashon">метка</label><span id="tagbox"><input id="tag" placeholder="без метки" autocomplete="off"><button id="tagx" title="очистить поле">&times;</button><div id="tagmenu"></div></span></div><div id="res"></div></div>
+<div id="bar"><div class="in"><a id="home" href="../index.html" title="список книг">&larr; книги</a><input id="q" placeholder="Найти цитату или номер — 1.14.2 …" autocomplete="off"><span id="cnt"></span><label id="hash" title="добавлять #метку в заметку"><input type="checkbox" id="hashon">метка</label><span id="tagbox" style="display:none"><input id="tag" placeholder="без метки" autocomplete="off"><button id="tagx" title="очистить поле">&times;</button><div id="tagmenu"></div></span></div><div id="res"></div></div>
 <h1>Государство и революция</h1>
 <h2 id="c1">Предисловие</h2>
 <p id="1.1"><span class="num">1.1</span><span class="s" id="1.1.1"><strong>ПРЕДИСЛОВИЕ К ПЕРВОМУ ИЗДАНИЮ</strong></span></p>
@@ -1038,7 +1038,7 @@ if(hashon){
     if(useHash && !cur.length) tagIn.focus();
   });
 }
-refreshTags(); tagState(); applyHash_();
+/* инициализация перенесена в конец: здесь tagBox ещё не присвоен */
 
 /* ---------- выпадающий список меток ---------- */
 var tagBox = document.getElementById('tagbox');
@@ -1230,5 +1230,10 @@ addEventListener('keydown', function(e){
     e.preventDefault(); q.focus();
   }
 });
+
+/* Инициализация — последней строкой. Раньше applyHash_() вызывался выше
+   объявления tagBox: из-за подъёма var переменная была undefined, проверка
+   не проходила, и поле метки не пряталось при загрузке. Молча. */
+refreshTags(); tagState(); applyHash_();
 })();
 </script>

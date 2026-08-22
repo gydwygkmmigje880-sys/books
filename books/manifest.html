@@ -123,7 +123,7 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
 #ok.on{opacity:.94}
 @media print{#bar,#tb,#ok{display:none!important}body{padding-top:1rem}}
 </style>
-<div id="bar"><div class="in"><a id="home" href="../index.html" title="список книг">&larr; книги</a><input id="q" placeholder="Найти цитату или номер — 1.14.2 …" autocomplete="off"><span id="cnt"></span><label id="hash" title="добавлять #метку в заметку"><input type="checkbox" id="hashon">метка</label><span id="tagbox"><input id="tag" placeholder="без метки" autocomplete="off"><button id="tagx" title="очистить поле">&times;</button><div id="tagmenu"></div></span></div><div id="res"></div></div>
+<div id="bar"><div class="in"><a id="home" href="../index.html" title="список книг">&larr; книги</a><input id="q" placeholder="Найти цитату или номер — 1.14.2 …" autocomplete="off"><span id="cnt"></span><label id="hash" title="добавлять #метку в заметку"><input type="checkbox" id="hashon">метка</label><span id="tagbox" style="display:none"><input id="tag" placeholder="без метки" autocomplete="off"><button id="tagx" title="очистить поле">&times;</button><div id="tagmenu"></div></span></div><div id="res"></div></div>
 <h1>Манифест Коммунистической партии</h1>
 <p id="0.1"><span class="num">0.1</span><span class="s" id="0.1.1"><em>Титульный лист первого издания «Манифеста Коммунистической партии»</em><sup class="nt"><a href="#n_1" title="«Манифест Коммунистической партии» – величайший программный документ научного коммунизма. «Эта небольшая книжечка стоит целых томов: духом ее живет и движется до сих пор весь организованный и борющийся пролетариат цивилизованного мира» (Ленин). Написанный К. Марксом и Ф. Энгельсом в качестве программы Союза коммунистов, «Манифест Коммунистической партии» был впервые опубликован в Лондоне в феврале">1</a></sup></span></p>
 <p id="0.2"><span class="num">0.2</span><span class="s" id="0.2.1">Призрак бродит по Европе – призрак коммунизма.</span> <span class="s" id="0.2.2">Все силы старой Европы объединились для священной травли этого призрака: папа и царь, Меттерних<sup class="nt"><a href="#n_2" title="Меттерних (Metternich), Клеменс, князь (1773—1859) – австрийский государственный деятель и дипломат, министр иностранных дел (1809—1821) и канцлер (1821—1848), ярый реакционер, один из организаторов Священного союза.">2</a></sup> и Гизо<sup class="nt"><a href="#n_3" title="Гизо (Guizot), Франсуа Пьер Гийом (1787—1874) – французский буржуазный историк и государственный деятель, с 1840 по 1848 г. фактически руководил внутренней и внешней политикой, выражал интересы крупной финансовой буржуазии.">3</a></sup>, французские радикалы и немецкие полицейские.</span></p>
@@ -777,7 +777,7 @@ if(hashon){
     if(useHash && !cur.length) tagIn.focus();
   });
 }
-refreshTags(); tagState(); applyHash_();
+/* инициализация перенесена в конец: здесь tagBox ещё не присвоен */
 
 /* ---------- выпадающий список меток ---------- */
 var tagBox = document.getElementById('tagbox');
@@ -969,5 +969,10 @@ addEventListener('keydown', function(e){
     e.preventDefault(); q.focus();
   }
 });
+
+/* Инициализация — последней строкой. Раньше applyHash_() вызывался выше
+   объявления tagBox: из-за подъёма var переменная была undefined, проверка
+   не проходила, и поле метки не пряталось при загрузке. Молча. */
+refreshTags(); tagState(); applyHash_();
 })();
 </script>

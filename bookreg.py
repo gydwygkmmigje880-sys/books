@@ -1336,7 +1336,7 @@ if(hashon){
     if(useHash && !cur.length) tagIn.focus();
   });
 }
-refreshTags(); tagState(); applyHash_();
+/* инициализация перенесена в конец: здесь tagBox ещё не присвоен */
 
 /* ---------- выпадающий список меток ---------- */
 var tagBox = document.getElementById('tagbox');
@@ -1528,6 +1528,11 @@ addEventListener('keydown', function(e){
     e.preventDefault(); q.focus();
   }
 });
+
+/* Инициализация — последней строкой. Раньше applyHash_() вызывался выше
+   объявления tagBox: из-за подъёма var переменная была undefined, проверка
+   не проходила, и поле метки не пряталось при загрузке. Молча. */
+refreshTags(); tagState(); applyHash_();
 })();
 """
 def write_html(reg, out):
@@ -1593,7 +1598,8 @@ def write_html(reg, out):
          'autocomplete="off"><span id="cnt"></span>'
          '<label id="hash" title="добавлять #метку в заметку">'
          '<input type="checkbox" id="hashon">метка</label>'
-         '<span id="tagbox"><input id="tag" placeholder="без метки" '
+         '<span id="tagbox" style="display:none">'
+         '<input id="tag" placeholder="без метки" '
          'autocomplete="off">'
          '<button id="tagx" title="очистить поле">&times;</button>'
          '<div id="tagmenu"></div></span></div>'
