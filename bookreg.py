@@ -1415,6 +1415,18 @@ function fitPlaceholder(){
 addEventListener('resize', fitPlaceholder);
 addEventListener('orientationchange', function(){ setTimeout(fitPlaceholder, 120); });
 
+/* Флажок — тоже <input>, поэтому проверка по tagName глушила клавиши,
+   пока фокус стоял на нём: нажатие не проходило, а на флажке оставалась
+   рамка фокуса. Отличаем поля ввода текста от переключателей. */
+function typing(){
+  var a = document.activeElement;
+  if(!a) return false;
+  if(a.isContentEditable || a.tagName === 'TEXTAREA') return true;
+  if(a.tagName !== 'INPUT') return false;
+  return !/^(checkbox|radio|button|submit|reset|range|file|color)$/i
+          .test(a.type || 'text');
+}
+
 /* ---------- клавиши: обе раскладки и цифры ---------- */
 /* «/» отдан поиску, а вопросу оставлены «2» и «?» (то есть Shift+/):
    раньше «/» значил то одно, то другое в зависимости от того, выделено
@@ -1423,7 +1435,7 @@ var KEY = { '1':'К','k':'К','к':'К', '2':'?','?':'?', '3':'М','m':'М','м'
 var ADD = { '+':1, '=':1, '0':1 };
 addEventListener('keydown', function(e){
   if(e.metaKey || e.ctrlKey || e.altKey) return;
-  if(/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  if(typing()) return;
   if(ADD[e.key] && cur.length){ e.preventDefault(); addToBag(); return; }
   var t = KEY[e.key.toLowerCase()];
   if(t && (cur.length || bag.length)){ e.preventDefault(); emit(t); }
@@ -1507,6 +1519,9 @@ tagIn && tagIn.addEventListener('keydown', function(e){
   /* та же Shift+3 внутри поля — выключить метки и вернуться к тексту */
   if(e.key === '#' || e.key === '№'){
     e.preventDefault();
+    /* без stopPropagation событие дойдёт до window, там фокус уже снят,
+       охрана пропустит — и метки включатся обратно тем же нажатием */
+    e.stopPropagation();
     closeTags(); tagIn.blur(); barBusy = false;
     setHash(false);
     toast('Метки выключены');
@@ -1655,7 +1670,7 @@ q && q.addEventListener('keydown', function(e){
 });
 addEventListener('keydown', function(e){
   if(e.metaKey || e.ctrlKey || e.altKey) return;
-  if(/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+  if(typing()) return;
 
   if(e.key === '/'){ e.preventDefault(); q && q.focus(); q && q.select(); return; }
 
