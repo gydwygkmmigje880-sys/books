@@ -903,8 +903,6 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
 #tb .add{background:#ffffff26}
 #tb .add.has{background:#ffd47933;color:#ffd479}
 #tagbox{position:relative;display:flex;align-items:center}
-#tagbox.off{opacity:.45}
-#tagbox.off #tag{background:#f4f4f4;cursor:not-allowed}
 #tag{font:.85rem system-ui,sans-serif;width:9.5em;padding:.4rem 1.5rem .4rem .6rem;
  border:1px solid #ccc;border-radius:6px;outline:none;background:#fff}
 #tag:focus{border-color:var(--acc)}
@@ -1323,12 +1321,14 @@ addEventListener('keydown', function(e){
 var hashon = document.getElementById('hashon');
 var tagIn = document.getElementById('tag');
 function applyHash_(){
-  /* Поле не прячем, а гасим. Спрятанное поле означало бы, что на другом
-     домене возможности будто нет: localStorage у каждого origin свой, и
-     галочка, поставленная локально, на сайт не переезжает. */
-  if(tagBox) tagBox.classList.toggle('off', !useHash);
+  /* Поле прячется, но галочка видна всегда — она и служит подсказкой, что
+     возможность есть. Это важно: localStorage у каждого адреса свой, и на
+     новом домене галочка снята. Пропади ещё и она, выглядело бы, будто
+     метки вовсе не предусмотрены. */
+  if(tagBox) tagBox.style.display = useHash ? '' : 'none';
   if(tagIn) tagIn.disabled = !useHash;
   if(hashon) hashon.checked = useHash;
+  if(!useHash) closeTags();
 }
 if(hashon){
   hashon.addEventListener('change', function(){
