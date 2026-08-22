@@ -37,6 +37,9 @@ nav .home:hover{text-decoration:underline}
 .homebar{display:none}
 @media(max-width:900px){.homebar{display:block;margin:0 0 1.2rem}
  .homebar a{color:var(--acc);text-decoration:none;font-size:.9rem}}
+nav .other{display:block;color:#555;text-decoration:none;font-size:.85rem;
+ margin:1.2rem 0 0;padding-top:.8rem;border-top:1px solid var(--line)}
+nav .other:hover{color:var(--acc)}
 nav a{display:block;color:#555;text-decoration:none;padding:.24rem 0}
 nav a:hover{color:var(--acc)}
 nav a.sub{padding-left:1rem;font-size:.82rem;color:#777}
@@ -69,9 +72,28 @@ blockquote{margin:0 0 1.2rem;padding:.1rem 0 .1rem 1rem;
  border-left:3px solid #ddd;color:#444}
 strong{font-weight:600}
 
+#burger{display:none;position:fixed;top:.7rem;right:.7rem;z-index:60;
+ width:2.6rem;height:2.6rem;border:1px solid var(--line);border-radius:9px;
+ background:var(--bg);cursor:pointer;align-items:center;justify-content:center;
+ flex-direction:column;gap:.22rem;padding:0}
+#burger i{display:block;width:1.1rem;height:2px;background:var(--fg);
+ border-radius:2px;transition:transform .18s,opacity .18s}
+#burger.on i:nth-child(1){transform:translateY(.42rem) rotate(45deg)}
+#burger.on i:nth-child(2){opacity:0}
+#burger.on i:nth-child(3){transform:translateY(-.42rem) rotate(-45deg)}
+#veil{display:none;position:fixed;inset:0;background:#0006;z-index:55}
+#veil.on{display:block}
+
 @media(max-width:900px){
-  nav{display:none}
-  main{padding:1.6rem 1.2rem 6rem}
+  #burger{display:flex}
+  #veil{display:none}
+  nav{position:fixed;top:0;right:0;bottom:0;width:min(20rem,84vw);z-index:58;
+   background:var(--bg);border-left:1px solid var(--line);
+   padding:4.2rem 1.2rem 2rem;transform:translateX(102%);
+   transition:transform .22s ease;max-height:100vh;overflow:auto;
+   box-shadow:-8px 0 26px #0002}
+  nav.on{transform:none}
+  main{padding:3.6rem 1.2rem 6rem}
   table{display:block;overflow-x:auto}
 }
 """
@@ -83,7 +105,28 @@ def slug(text):
     return re.sub(r"\s+", "-", t)[:60] or "x"
 
 
-def build(md_path, title=None):
+JS = r"""
+<script>
+(function(){
+  var b=document.getElementById('burger'),n=document.querySelector('nav'),
+      v=document.getElementById('veil');
+  if(!b||!n) return;
+  function set(on){
+    b.classList.toggle('on',on); n.classList.toggle('on',on);
+    v.classList.toggle('on',on);
+    document.body.style.overflow = on ? 'hidden' : '';
+  }
+  b.addEventListener('click',function(){ set(!n.classList.contains('on')); });
+  v.addEventListener('click',function(){ set(false); });
+  /* клик по ссылке в оглавлении закрывает меню, иначе оно закрывает текст,
+     к которому только что перешли */
+  n.addEventListener('click',function(e){ if(e.target.closest('a')) set(false); });
+  addEventListener('keydown',function(e){ if(e.key==='Escape') set(false); });
+})();
+</script>"""
+
+
+def build(md_path, title=None, other=None):
     src = Path(md_path).read_text(encoding="utf-8")
     md = markdown.Markdown(extensions=["tables", "fenced_code", "sane_lists",
                                        "attr_list"])
@@ -112,6 +155,8 @@ def build(md_path, title=None):
                           Path(md_path).stem)
 
     home = '<a class="home" href="index.html">&larr; Книги</a>'
+    if other:
+        home += f'<a class="other" href="{other[0]}">{other[1]}</a>'
     return (f'<!doctype html><html lang="ru"><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{doc_title}</title><style>{CSS}</style>'
@@ -119,7 +164,10 @@ def build(md_path, title=None):
             f'{home}{nav}</nav>'
             f'<main><div class="homebar">'
             f'<a href="index.html">&larr; Книги</a></div>'
-            f'{body}</main></div>')
+            f'{body}</main></div>'
+            f'<div id="veil"></div>'
+            f'<button id="burger" aria-label="Оглавление">'
+            f'<i></i><i></i><i></i></button>' + JS)
 
 
 def main():
@@ -134,8 +182,10 @@ def main():
     if many:
         out.mkdir(parents=True, exist_ok=True)
 
+    CROSS = {'docs': ('reader.html', 'Как делать заметки →'),
+             'reader': ('docs.html', 'Документация для сопровождающего →')}
     for f in a.files:
-        html = build(f)
+        html = build(f, other=CROSS.get(Path(f).stem.lower()))
         dst = out / (Path(f).stem.lower() + ".html") if many else out
         dst.parent.mkdir(parents=True, exist_ok=True)
         dst.write_text(html, encoding="utf-8")

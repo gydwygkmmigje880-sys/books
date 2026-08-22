@@ -1,0 +1,277 @@
+<!doctype html><html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Как делать заметки</title><style>
+:root{--fg:#1a1a1a;--dim:#8a8a8a;--acc:#b06000;--line:#e6e2da;--bg:#fffdfa}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);
+ font:16px/1.68 -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}
+.wrap{display:flex;align-items:flex-start;max-width:74rem;margin:0 auto}
+
+nav{position:sticky;top:0;flex:0 0 17rem;max-height:100vh;overflow:auto;
+ padding:2.5rem 1rem 3rem 1.5rem;font-size:.86rem;line-height:1.5}
+nav .t{font-weight:700;font-size:.95rem;margin-bottom:.4rem}
+nav .home{display:block;color:var(--acc);text-decoration:none;font-size:.85rem;
+ margin-bottom:1rem}
+nav .home:hover{text-decoration:underline}
+.homebar{display:none}
+@media(max-width:900px){.homebar{display:block;margin:0 0 1.2rem}
+ .homebar a{color:var(--acc);text-decoration:none;font-size:.9rem}}
+nav .other{display:block;color:#555;text-decoration:none;font-size:.85rem;
+ margin:1.2rem 0 0;padding-top:.8rem;border-top:1px solid var(--line)}
+nav .other:hover{color:var(--acc)}
+nav a{display:block;color:#555;text-decoration:none;padding:.24rem 0}
+nav a:hover{color:var(--acc)}
+nav a.sub{padding-left:1rem;font-size:.82rem;color:#777}
+
+main{flex:1;min-width:0;padding:2.5rem 2rem 8rem;max-width:52rem}
+h1{font-size:1.9rem;line-height:1.25;margin:0 0 .4rem;letter-spacing:-.01em}
+h1+p{color:#555;margin-top:0}
+h2{font-size:1.28rem;margin:3.2rem 0 1rem;padding-top:1.2rem;
+ border-top:1px solid var(--line);scroll-margin-top:1rem}
+h3{font-size:1.02rem;margin:2rem 0 .6rem;scroll-margin-top:1rem}
+h2:first-of-type{border-top:0;padding-top:0}
+p,ul,ol{margin:0 0 1rem}
+li{margin:.2rem 0}
+a{color:var(--acc)}
+hr{display:none}
+
+code{font:.87em ui-monospace,SFMono-Regular,Menlo,monospace;
+ background:#f1ece3;padding:.1em .34em;border-radius:4px}
+pre{background:#f7f4ee;border:1px solid var(--line);border-radius:8px;
+ padding:.85rem 1rem;overflow:auto;margin:0 0 1.2rem}
+pre code{background:0;padding:0;font-size:.83rem;line-height:1.55}
+
+table{border-collapse:collapse;width:100%;margin:0 0 1.4rem;font-size:.9rem}
+th,td{text-align:left;padding:.5rem .7rem;border-bottom:1px solid var(--line);
+ vertical-align:top}
+th{font-weight:600;background:#f7f4ee;white-space:nowrap}
+td:first-child code,th:first-child{white-space:nowrap}
+
+blockquote{margin:0 0 1.2rem;padding:.1rem 0 .1rem 1rem;
+ border-left:3px solid #ddd;color:#444}
+strong{font-weight:600}
+
+#burger{display:none;position:fixed;top:.7rem;right:.7rem;z-index:60;
+ width:2.6rem;height:2.6rem;border:1px solid var(--line);border-radius:9px;
+ background:var(--bg);cursor:pointer;align-items:center;justify-content:center;
+ flex-direction:column;gap:.22rem;padding:0}
+#burger i{display:block;width:1.1rem;height:2px;background:var(--fg);
+ border-radius:2px;transition:transform .18s,opacity .18s}
+#burger.on i:nth-child(1){transform:translateY(.42rem) rotate(45deg)}
+#burger.on i:nth-child(2){opacity:0}
+#burger.on i:nth-child(3){transform:translateY(-.42rem) rotate(-45deg)}
+#veil{display:none;position:fixed;inset:0;background:#0006;z-index:55}
+#veil.on{display:block}
+
+@media(max-width:900px){
+  #burger{display:flex}
+  #veil{display:none}
+  nav{position:fixed;top:0;right:0;bottom:0;width:min(20rem,84vw);z-index:58;
+   background:var(--bg);border-left:1px solid var(--line);
+   padding:4.2rem 1.2rem 2rem;transform:translateX(102%);
+   transition:transform .22s ease;max-height:100vh;overflow:auto;
+   box-shadow:-8px 0 26px #0002}
+  nav.on{transform:none}
+  main{padding:3.6rem 1.2rem 6rem}
+  table{display:block;overflow-x:auto}
+}
+</style><div class="wrap"><nav><div class="t">Как делать заметки</div><a class="home" href="index.html">&larr; Книги</a><a class="other" href="docs.html">Документация для сопровождающего →</a><a href="#коротко" class="">Коротко</a><a href="#что-попадает-в-заметку" class="">Что попадает в заметку</a><a href="#выбор-цитаты" class="">Выбор цитаты</a><a href="#несколько-цитат-к-одной-заметке" class="">Несколько цитат к одной заметке</a><a href="#метки" class="">Метки</a><a href="#поиск" class="">Поиск</a><a href="#клавиши" class="">Клавиши</a><a href="#на-телефоне" class="">На телефоне</a><a href="#что-означают-номера" class="">Что означают номера</a><a href="#сноски-и-оформление" class="">Сноски и оформление</a></nav><main><div class="homebar"><a href="index.html">&larr; Книги</a></div><h1 id="как-делать-заметки">Как делать заметки</h1>
+<p>Книга открывается как обычная страница. Выделяете цитату — и в буфер обмена
+попадает готовая строка со ссылкой на это место. Вставляете её в свою вкладку
+Google Документа и пишете заметку.</p>
+<p>Смысл в том, чтобы не выписывать цитату руками: в заметке остаётся короткий
+номер, а по нему всегда можно вернуться к тексту.</p>
+<h2 id="коротко">Коротко</h2>
+<pre><code>выделил цитату  →  нажал 1, 2 или 3  →  Ctrl+V в документе  →  написал заметку
+</code></pre>
+<p>Три типа заметок:</p>
+<table>
+<thead>
+<tr>
+<th>клавиша</th>
+<th>тип</th>
+<th>о чём</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code></td>
+<td><code>К</code> — комментарий</td>
+<td>о том, что сказал автор: возражение, уточнение, сомнение</td>
+</tr>
+<tr>
+<td><code>2</code></td>
+<td><code>?</code> — вопрос</td>
+<td>то, что хочется обсудить на встрече</td>
+</tr>
+<tr>
+<td><code>3</code></td>
+<td><code>М</code> — мысль</td>
+<td>своё, что возникло по поводу: ассоциация, следствие</td>
+</tr>
+</tbody>
+</table>
+<p>Разница между <code>К</code> и <code>М</code> — в направлении. Комментарий смотрит <strong>внутрь текста</strong>:
+что автор утверждает и так ли это. Мысль смотрит <strong>наружу</strong>: что у вас из-за
+этого сдвинулось, на что это похоже, куда ведёт за пределами книги.</p>
+<p>Мысль обычно цепляется не за главный тезис абзаца, а за оборот или слово — за
+метафору, странный эпитет, деталь примера. Поэтому у <code>М</code> в заметку попадают ещё
+и выделенные слова: через месяц вы не вспомните, почему абзац про пролетариат
+породил мысль про ремесло, а зацепка это восстановит.</p>
+<h2 id="что-попадает-в-заметку">Что попадает в заметку</h2>
+<pre><code>К [1.14.1-4]
+? [1.14.3]
+М [1.14.3] «нечего терять»
+</code></pre>
+<p>Номер — ссылка: клик открывает книгу ровно на этом месте с подсветкой.
+Курсор после вставки встаёт сразу за скобкой, можно писать.</p>
+<h2 id="выбор-цитаты">Выбор цитаты</h2>
+<p>Подсветок две, и они говорят разное.</p>
+<p><strong>Бледная заливка</strong> — предложения целиком: именно они попадут в ссылку.
+Сослаться на половину предложения нельзя, номера такой точности не имеют.</p>
+<p><strong>Синяя накладка поверх</strong> — то, что вы протянули мышкой. Из этого куска берётся
+цитата у <code>М</code>.</p>
+<p>Выделение можно тянуть через границу абзаца и даже главы — номер станет длиннее,
+но будет верным.</p>
+<p>Подсветка не пропадает, если щёлкнуть в поле поиска или прокрутить страницу.
+Снимается щелчком по тексту, клавишей <code>Esc</code> или после вставки заметки.</p>
+<h2 id="несколько-цитат-к-одной-заметке">Несколько цитат к одной заметке</h2>
+<p>Мысль часто держится не на одной цитате, а на трёх из разных глав. Кнопка <code>+</code>
+(или клавиша <code>+</code>) складывает их в накопитель:</p>
+<pre><code>выделил → +  →  выделил другую → +  →  выделил третью → нажал 3
+</code></pre>
+<pre><code>М [2.1.4] [3.7.2] [4.11.1] Текст мысли.
+</code></pre>
+<p>Внизу видно, что собрано. Лишний номер убирается крестиком, всё сразу —
+кнопкой «Очистить» или <code>Esc</code>, когда ничего не выделено. После вставки накопитель
+пустеет сам.</p>
+<h2 id="метки">Метки</h2>
+<p>Если вы собираете цитаты по темам, включите «метка» вверху страницы или нажмите
+Shift+3. В заметку добавится хештег:</p>
+<pre><code>? [1.2.1] #государство Вопрос к обсуждению.
+</code></pre>
+<p>Метка задаётся один раз и держится, пока вы её не смените, — это настройка на
+сеанс, а не действие на каждую цитату. Оставите поле пустым — в заметку приедет
+голая <code>#</code>, а слово допишете уже в документе.</p>
+<p>Метки <strong>личные</strong>: список хранится в вашем браузере, у других участников он свой.
+Щелчок по полю открывает то, чем вы уже пользовались; крестик рядом с записью
+забывает её.</p>
+<p>Одно замечание, ради которого список и сделан: метка работает, только если она
+каждый раз одна и та же. <code>#государство</code>, <code>#гос</code> и <code>#Государство</code> — три разные
+группы, и поиск по документу их не сведёт. Через полгода набора по памяти они
+неизбежно расходятся, поэтому лучше выбирать из списка, чем печатать.</p>
+<h2 id="поиск">Поиск</h2>
+<p>Строка вверху ищет двумя способами, различает сама.</p>
+<p><strong>По словам.</strong> Наберите начало цитаты — найдётся продолжение. Пропущенные слова
+не мешают: «Пролетариям нечего терять» находит «Пролетариям нечего <strong>в ней</strong>
+терять». Падежи тоже: «пролетариев всех стран» находит «ПРОЛЕТАРИИ ВСЕХ СТРАН».</p>
+<p>Это главный способ работать с бумажной книгой: набрали три-четыре слова,
+выбрали из списка — предложение выделилось, дальше как обычно.</p>
+<p>Разные слова с одним смыслом поиск не отождествляет: «играла» не найдёт
+«сыграла». Если ничего не нашлось, он прямо об этом скажет — переформулируйте.</p>
+<p><strong>По номеру.</strong> Введите <code>1.14</code>, <code>1.14.3</code> или <code>1.14.2-4</code> — откроется это место.
+Можно вставить и целую ссылку, присланную в чате: адрес разберётся сам.</p>
+<h2 id="клавиши">Клавиши</h2>
+<table>
+<thead>
+<tr>
+<th>клавиша</th>
+<th>действие</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>1</code>, <code>К</code>, <code>k</code></td>
+<td>комментарий</td>
+</tr>
+<tr>
+<td><code>2</code>, <code>?</code></td>
+<td>вопрос</td>
+</tr>
+<tr>
+<td><code>3</code>, <code>М</code>, <code>m</code></td>
+<td>мысль</td>
+</tr>
+<tr>
+<td><code>+</code>, <code>=</code>, <code>0</code></td>
+<td>добавить цитату в накопитель</td>
+</tr>
+<tr>
+<td><code>/</code></td>
+<td>курсор в поиск</td>
+</tr>
+<tr>
+<td>Shift+3</td>
+<td>поле метки; повторно в поле — выключить метки</td>
+</tr>
+<tr>
+<td><code>Esc</code></td>
+<td>вернуться к тексту, снять выделение, очистить накопитель</td>
+</tr>
+</tbody>
+</table>
+<p>Работают обе раскладки. Пока курсор в поиске или в поле метки, клавиши ничего не
+запускают — набирайте что угодно.</p>
+<h2 id="на-телефоне">На телефоне</h2>
+<p>Выделять текст пальцем неудобно, поэтому там <strong>выбор нажатием</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>действие</th>
+<th>что происходит</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>тап по предложению</td>
+<td>выбрано одно</td>
+</tr>
+<tr>
+<td>тап по другому</td>
+<td>диапазон между ними</td>
+</tr>
+<tr>
+<td>тап внутри диапазона</td>
+<td>сжать до одного</td>
+</tr>
+<tr>
+<td>тап по единственному выбранному</td>
+<td>снять</td>
+</tr>
+</tbody>
+</table>
+<p>Прокрутка нажатием не считается. Кнопки — внизу экрана, крупные.</p>
+<p>У <code>М</code> цитата берётся из предложения целиком: частичного выделения при нажатии не
+бывает. Сноски показываются не при наведении, а по нажатию — уводят в
+примечания, оттуда стрелка возвращает обратно.</p>
+<h2 id="что-означают-номера">Что означают номера</h2>
+<pre><code>1.14      абзац 14 первой главы
+1.14.3    третье предложение в нём
+1.14.2-4  предложения со второго по четвёртое
+</code></pre>
+<p>Главы нумеруются как в самой книге: если у главы есть подглавы, номер выглядит
+как <code>3.2.14</code>. Текст до первой главы — предисловие, эпиграф — попадает в главу
+<code>0</code>.</p>
+<p>Номера одинаковы у всех участников и не меняются, поэтому на них можно ссылаться
+и произносить вслух: «один-четырнадцать».</p>
+<h2 id="сноски-и-оформление">Сноски и оформление</h2>
+<p>Сноска — надстрочное число. Наведение показывает текст, клик уводит в
+«Примечания» внизу, оттуда цветная стрелка возвращает на место.</p>
+<p>Курсив автора сохраняется. При копировании цитаты номер сноски в буфер не
+попадёт — цитата останется чистой.</p></main></div><div id="veil"></div><button id="burger" aria-label="Оглавление"><i></i><i></i><i></i></button>
+<script>
+(function(){
+  var b=document.getElementById('burger'),n=document.querySelector('nav'),
+      v=document.getElementById('veil');
+  if(!b||!n) return;
+  function set(on){
+    b.classList.toggle('on',on); n.classList.toggle('on',on);
+    v.classList.toggle('on',on);
+    document.body.style.overflow = on ? 'hidden' : '';
+  }
+  b.addEventListener('click',function(){ set(!n.classList.contains('on')); });
+  v.addEventListener('click',function(){ set(false); });
+  /* клик по ссылке в оглавлении закрывает меню, иначе оно закрывает текст,
+     к которому только что перешли */
+  n.addEventListener('click',function(e){ if(e.target.closest('a')) set(false); });
+  addEventListener('keydown',function(e){ if(e.key==='Escape') set(false); });
+})();
+</script>

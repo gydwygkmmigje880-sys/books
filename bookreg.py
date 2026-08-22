@@ -1830,7 +1830,9 @@ a.bk .n{color:var(--dim);font-size:.8rem;margin-top:.45rem;
 .lock{color:#2a7f3e}.nolock{color:#b06000}
 footer{margin-top:2.5rem;padding-top:1.2rem;border-top:1px solid var(--line);
  font-size:.88rem;color:#666}
-footer a{color:var(--acc)}
+footer a{color:var(--acc);text-decoration:none}
+footer a:hover{text-decoration:underline}
+footer .sep{color:var(--dim);margin:0 .6rem}
 """
 
 
@@ -1857,7 +1859,9 @@ def write_index(regs, out):
         '<h1>Книги</h1><p class="sub">Выделите текст — появится панель '
         'с кнопками К, ? и М. Или найдите цитату по словам или номеру.</p>'
         + "".join(cards)
-        + '<footer><a href="docs.html">Документация</a></footer>',
+        + '<footer><a href="reader.html">Как делать заметки</a>'
+          '<span class="sep">·</span>'
+          '<a href="docs.html">Документация для сопровождающего</a></footer>',
         encoding="utf-8")
 
 
