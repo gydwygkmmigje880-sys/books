@@ -867,6 +867,35 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
 @media(max-width:820px){p>.num{position:static;display:block;text-align:left;
  margin-bottom:.2em}}
 
+/* --- узкое окно: сначала просто сжимаем поиск (так же, как раньше),
+   и только когда ужимать уже нечего — переносим метку на второй ряд --- */
+@media(max-width:420px){
+ #bar .in{flex-wrap:wrap;row-gap:.45rem}
+ #home{order:-1}
+ #q{flex:1 1 100%}
+ #tagbox{flex:1 1 100%;order:9}
+ #tag{width:100%}
+ #tagmenu{left:0;right:0;min-width:0}
+ #res{max-height:38vh}
+}
+
+/* --- сенсорный ввод: панель снизу, крупные кнопки, выбор тапом --- */
+body.touch p span.s{cursor:pointer}
+body.touch p{user-select:none;-webkit-user-select:none}
+body.touch #tb{position:fixed!important;left:0!important;right:0!important;
+ bottom:0!important;top:auto!important;border-radius:14px 14px 0 0;
+ justify-content:center;padding:.55rem .6rem
+ calc(.55rem + env(safe-area-inset-bottom));gap:.4rem;
+ box-shadow:0 -4px 20px #0003}
+body.touch #tb button{padding:.72rem .95rem;font-size:1rem}
+body.touch #tb kbd{display:none}
+body.touch #tb .anc{font-size:.8rem;padding-right:.5rem}
+body.touch #tb .trg{display:none}
+body.touch #acc{bottom:calc(4.6rem + env(safe-area-inset-bottom))}
+body.touch #ok{bottom:calc(5.4rem + env(safe-area-inset-bottom))}
+body.touch .rawsel{display:none}
+body.touch span.s.pick{background:#cfe0ff;box-shadow:inset 0 -2px 0 #7ba7e8}
+
 /* --- панель поиска (режим чтения с бумаги) --- */
 #bar{position:fixed;top:0;left:0;right:0;z-index:40;background:#fffffff2;
  backdrop-filter:blur(6px);border-bottom:1px solid #e5e5e5;padding:.5rem 1rem;
@@ -875,8 +904,11 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
 #home{color:var(--acc);text-decoration:none;font-size:.85rem;white-space:nowrap;
  padding:.4rem .2rem}
 #home:hover{text-decoration:underline}
-#q{flex:1;font:.92rem system-ui,sans-serif;padding:.42rem .7rem;
- border:1px solid #ccc;border-radius:6px;outline:none}
+/* min-width:0 обязателен: у flex-элемента минимальная ширина по умолчанию
+   равна ширине содержимого, поэтому длинный placeholder распирал строку и
+   выдавливал поле метки за край вместо того, чтобы дать поиску сжаться. */
+#q{flex:1 1 8rem;min-width:0;font:.92rem system-ui,sans-serif;
+ padding:.42rem .7rem;border:1px solid #ccc;border-radius:6px;outline:none}
 #q:focus{border-color:var(--acc)}
 #cnt{font-size:.78rem;color:var(--dim);white-space:nowrap}
 #res{max-width:40em;margin:.4rem auto 0;max-height:46vh;overflow:auto}
@@ -959,6 +991,12 @@ a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
 JS = r"""
 (function(){
 var SENT = [].slice.call(document.querySelectorAll('span.s'));
+/* Сенсорный ввод определяется возможностями, а не шириной экрана: на
+   планшете экран широкий, а наведения и клавиатуры всё равно нет. */
+var TOUCH = matchMedia('(hover: none) and (pointer: coarse)').matches;
+if(TOUCH) addEventListener('DOMContentLoaded', function(){
+  document.body.classList.add('touch');
+});
 var BASE = location.href.split('#')[0];
 var byId = {}; SENT.forEach(function(e){ byId[e.id] = e; });
 
@@ -1172,19 +1210,25 @@ function place(){
   tb.style.top = ((y > 4 ? y : bottom + 8) + scrollY) + 'px';
 }
 
-function show(){
-  var list = picked();
-  if(!list.length) return;        /* пусто — просто ничего не меняем */
+/* Ядро выбора: одинаково для мыши и для тапа. Отличается только тем,
+   откуда берётся список предложений и есть ли частичное выделение. */
+function setCur(list, range){
   cur = list;
-  var sel = getSelection();
-  lastRaw = sel.toString();
+  lastRaw = range ? String(getSelection()) : '';
   markPick(list);
-  drawRaw(sel.rangeCount ? sel.getRangeAt(0) : null);
+  drawRaw(range || null);
   tb.querySelector('.anc').textContent = anchorFor(list);
   tb.querySelector('.trg').textContent = '«' + trigger(list) + '»';
   tb.querySelector('.add').classList.toggle('has', bag.length > 0);
   tb.classList.add('on');
-  place();
+  if(!TOUCH) place();          /* на сенсоре панель прибита к низу экрана */
+}
+
+function show(){
+  var list = picked();
+  if(!list.length) return;        /* пусто — просто ничего не меняем */
+  var sel = getSelection();
+  setCur(list, sel.rangeCount ? sel.getRangeAt(0) : null);
 }
 
 function toast(t){ ok.textContent = t; ok.classList.add('on');
@@ -1287,23 +1331,78 @@ bar && bar.addEventListener('focusout', function(){
       barBusy = false;
   }, 0);
 });
-document.addEventListener('selectionchange', function(){
-  if(barBusy) return;
-  clearTimeout(show._t); show._t = setTimeout(show, 60);
-});
-/* Явный сброс: щелчок по тексту без протяжки. Только так выбор снимается
-   сам — всё остальное (фокус в поле, прокрутка) его не трогает. */
-document.addEventListener('pointerup', function(e){
-  if(e.target.closest('#bar,#tb,#acc')) return;
-  setTimeout(function(){
-    var s = getSelection();
-    if(cur.length && (!s.rangeCount || s.isCollapsed)) hide();
-  }, 10);
-});
+if(!TOUCH){
+  document.addEventListener('selectionchange', function(){
+    if(barBusy) return;
+    clearTimeout(show._t); show._t = setTimeout(show, 60);
+  });
+  /* Явный сброс: щелчок по тексту без протяжки. Только так выбор снимается
+     сам — всё остальное (фокус в поле, прокрутка) его не трогает. */
+  document.addEventListener('pointerup', function(e){
+    if(e.target.closest('#bar,#tb,#acc')) return;
+    setTimeout(function(){
+      var s = getSelection();
+      if(cur.length && (!s.rangeCount || s.isCollapsed)) hide();
+    }, 10);
+  });
+}
+
+/* ---------- выбор тапом (сенсорные экраны) ----------
+   Протягивать текст пальцем неудобно, а системное меню выделения перекрывает
+   нашу панель. Поэтому на сенсоре текст помечен как невыделяемый, а выбор
+   делается нажатиями: тап — предложение, второй тап — диапазон до него.
+   Ссылка всё равно указывает на целое предложение, точнее нельзя, так что
+   ограничение модели данных здесь совпадает с тем, что удобно пальцем. */
+if(TOUCH){
+  var tap = null;
+  document.addEventListener('pointerdown', function(e){
+    if(e.target.closest('#bar,#tb,#acc')) { tap = null; return; }
+    tap = { x: e.clientX, y: e.clientY, t: Date.now(), sy: scrollY };
+  }, {passive: true});
+
+  document.addEventListener('pointerup', function(e){
+    var st = tap; tap = null;
+    if(!st) return;
+    /* Отсев прокрутки: сдвинулся палец или уехала страница — это не тап.
+       Долгое нажатие тоже пропускаем: оно вызывает системное меню. */
+    if(Math.abs(e.clientX - st.x) > 12 || Math.abs(e.clientY - st.y) > 12) return;
+    if(Math.abs(scrollY - st.sy) > 4) return;
+    if(Date.now() - st.t > 500) return;
+
+    var el = e.target.closest('span.s');
+    if(!el){ if(cur.length) hide(); return; }
+    tapSentence(el);
+  });
+}
+
+function tapSentence(el){
+  var i = SENT.indexOf(el);
+  if(i < 0) return;
+  if(!cur.length){ setCur([el]); return; }
+  var a = SENT.indexOf(cur[0]), b = SENT.indexOf(cur[cur.length - 1]);
+  if(i >= a && i <= b){
+    /* тап внутри уже выбранного: одно предложение — снять, диапазон — сжать */
+    if(cur.length === 1) hide(); else setCur([el]);
+    return;
+  }
+  setCur(SENT.slice(Math.min(i, a), Math.max(i, b) + 1));
+}
 addEventListener('scroll', function(){ if(cur.length) place(); }, {passive:true});
 
+/* placeholder длинный только пока есть место: иначе он обрезается
+   на полуслове и выглядит поломкой */
+function fitPlaceholder(){
+  if(!q) return;
+  q.placeholder = q.offsetWidth < 230
+    ? 'Поиск' : 'Найти цитату или номер — 1.14.2 …';
+}
+addEventListener('resize', fitPlaceholder);
+
 /* ---------- клавиши: обе раскладки и цифры ---------- */
-var KEY = { '1':'К','k':'К','к':'К', '2':'?','?':'?','/':'?', '3':'М','m':'М','м':'М' };
+/* «/» отдан поиску, а вопросу оставлены «2» и «?» (то есть Shift+/):
+   раньше «/» значил то одно, то другое в зависимости от того, выделено
+   что-нибудь или нет, и это путало. */
+var KEY = { '1':'К','k':'К','к':'К', '2':'?','?':'?', '3':'М','m':'М','м':'М' };
 var ADD = { '+':1, '=':1, '0':1 };
 addEventListener('keydown', function(e){
   if(e.metaKey || e.ctrlKey || e.altKey) return;
@@ -1520,19 +1619,31 @@ q && q.addEventListener('keydown', function(e){
   } else if(e.key === 'Enter'){
     e.preventDefault();
     if(items.length) choose(items[sel < 0 ? 0 : sel].dataset.id);
-  } else if(e.key === 'Escape'){ q.value=''; res.innerHTML=''; cnt.textContent=''; }
+  } else if(e.key === 'Escape'){
+    q.value = ''; res.innerHTML = ''; cnt.textContent = ''; q.blur();
+  }
 });
 addEventListener('keydown', function(e){
-  if(e.key === '/' && document.activeElement !== q &&
-     !/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) && !cur.length){
-    e.preventDefault(); q.focus();
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  if(/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+
+  if(e.key === '/'){ e.preventDefault(); q && q.focus(); q && q.select(); return; }
+
+  /* «#» — Shift+3 в обеих раскладках, мнемонично и не спорит с «3».
+     Если метки выключены, заодно включаем: нажали — значит нужны. */
+  if(e.key === '#'){
+    e.preventDefault();
+    if(!useHash && hashon){ hashon.checked = true;
+      useHash = true; save(KHASH, useHash); applyHash_(); }
+    tagIn && tagIn.focus(); tagIn && tagIn.select();
+    return;
   }
 });
 
 /* Инициализация — последней строкой. Раньше applyHash_() вызывался выше
    объявления tagBox: из-за подъёма var переменная была undefined, проверка
    не проходила, и поле метки не пряталось при загрузке. Молча. */
-refreshTags(); tagState(); applyHash_();
+refreshTags(); tagState(); applyHash_(); fitPlaceholder();
 })();
 """
 def write_html(reg, out):
