@@ -80,6 +80,7 @@ def normalize(t):
 
 # перед этими символами прямая кавычка считается открывающей
 BEFORE_OPEN = set(' \t\n(\u005b{\u2013\u2014\u2015-\u2026«„')
+MARK = "\ue010"   # метка «эту кавычку поставила догадка»
 
 
 def typo(t):
@@ -106,6 +107,11 @@ def typo(t):
             out.append(ch)
             continue
         prev = out[-1] if out else " "
+        # MARK помечает кавычку, поставленную догадкой. Перестановка
+        # многоточия применяется только к помеченным: если в исходнике уже
+        # стоит «…забыл», это осознанное решение автора или редактора, и
+        # трогать его нельзя.
+        out.append(MARK)
         if prev in BEFORE_OPEN:
             out.append("«" if depth == 0 or not nest else "„")
             depth += 1
@@ -118,9 +124,12 @@ def typo(t):
     # правило идёт первым, иначе многоточие уедет в следующую цитату.
     # Пробел сохраняется: без него соседние цитаты слипаются в »« и razdel
     # перестаёт видеть границу предложения.
-    s = re.sub("(»|\u201c)(\\s*)\u2026", "\u2026\\1\\2", s)   # »…  →  …»
-    s = re.sub("\u2026(\\s*)(«|\u201e)", "\\1\\2\u2026", s)   # …«  →  «…
-    return s
+    M = re.escape(MARK)
+    s = re.sub(M + "(»|\u201c)(\\s*)\u2026",
+               MARK + "\u2026\\1\\2", s)              # »…  →  …»
+    s = re.sub("\u2026(\\s*)" + M + "(«|\u201e)",
+               "\\1" + MARK + "\\2\u2026", s)         # …«  →  «…
+    return s.replace(MARK, "")
 
 
 _morph = None
@@ -831,7 +840,8 @@ def freeze(reg, reg_path):
 def verify(reg, reg_path, map_out=None):
     lp = lockfile(reg_path)
     if not lp.exists():
-        sys.exit(f"Нет {lp.name} — нумерация ещё не заморожена (bookreg freeze)")
+        sys.exit(f"Нет {lp} — нумерация ещё не заморожена.\n"
+                 f"  Заморозить:  python3 bookreg.py freeze {reg_path}")
     lock = json.loads(lp.read_text(encoding="utf-8"))
     old = lock["anchors"]
     new = {s["id"]: s["norm"][:70] for s in reg["sentences"]}
@@ -866,8 +876,11 @@ def verify(reg, reg_path, map_out=None):
         print("✓ текст изменился, но все якоря на месте — ссылки в заметках "
               "целы")
         print("  Так бывает после правки опечаток, кавычек или оформления.")
-        print(f"  Перезаморозьте:  rm {lockfile(reg_path).name} && "
-              f"bookreg.py freeze {Path(reg_path).name}")
+        # пути даём те же, что человек ввёл, а не голые имена файлов:
+        # реестры лежат в books/, и команда должна работать копипастом
+        print(f"  Перезаморозьте:")
+        print(f"    rm {lockfile(reg_path)}")
+        print(f"    python3 bookreg.py freeze {reg_path}")
         return 0
 
     print("! текст изменился с момента заморозки\n")
@@ -2081,13 +2094,23 @@ def main():
                 "\n".join(f'{x["id"]}\t{x["text"]}' for x in reg["sentences"]),
                 encoding="utf-8")
             errs = len([r for r in check(reg) if r["sev"] == "ERROR"])
-            same = old["book"]["text_sha256"] == reg["book"]["text_sha256"]
-            flag = "✓" if same and not errs else ("!" if same else "СДВИГ")
+            same_text = old["book"]["text_sha256"] == reg["book"]["text_sha256"]
+            # якоря важнее хеша: правка кавычек или опечатки меняет текст,
+            # но границы предложений оставляет на месте
+            same_ids = ({x["id"] for x in old["sentences"]}
+                        == {x["id"] for x in reg["sentences"]})
+            if same_text:
+                note = "исходник не менялся"
+            elif same_ids:
+                note = "текст правили, якоря целы"
+            else:
+                note = "ЯКОРЯ СЪЕХАЛИ"
+            flag = "✓" if same_ids and not errs else ("!" if same_ids else "✗")
             print(f'{flag} {bid:<12} абз. {len(reg["paragraphs"]):>4}  '
-                  f'предл. {len(reg["sentences"]):>5}  '
-                  f'{"нумерация та же" if same else "НУМЕРАЦИЯ ИЗМЕНИЛАСЬ"}'
+                  f'предл. {len(reg["sentences"]):>5}  {note}'
                   + (f"  ошибок: {errs}" if errs else ""))
-            if not same or errs:
+            print(f'{"":<15}из {src.name}')
+            if not same_ids or errs:
                 bad += 1
         site = [(load(rp), lockfile(rp).exists()) for rp in regs]
         write_index(site, d.parent / "index.html")
