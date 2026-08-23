@@ -553,7 +553,7 @@ READERS = {".fb2": read_fb2, ".epub": read_epub, ".html": read_html,
 #  Сборка реестра
 # ===========================================================================
 
-def build(path, book_id, lemmatize=True, typo_on=False):
+def build(path, book_id, lemmatize=True, typo_on=False, front=""):
     path = Path(path)
     reader = READERS.get(path.suffix.lower())
     if not reader:
@@ -571,12 +571,25 @@ def build(path, book_id, lemmatize=True, typo_on=False):
            "chapters": [], "paragraphs": [], "sentences": [],
            "marks": [], "images": [], "notes": notes}
 
+    front_re = re.compile(front, re.I) if front else None
     counters, cur, n = [], "0", 0
     reg["chapters"].append({"id": "0", "title": "", "level": 0})
 
     for it in items:
         if it["kind"] == "chapter":
             lvl = it["level"]
+            # Передняя часть — предисловия, введения, посвящения. Номера главы
+            # не получают: иначе «Глава I» окажется второй, и нумерация
+            # разойдётся с книгой. Заголовок остаётся видимым как пометка.
+            # Только до первой настоящей главы и только на верхнем уровне.
+            if (front_re and lvl == 1 and not counters
+                    and front_re.search(it["text"])):
+                if typo_on:
+                    it["text"] = typo(it["text"])
+                reg["marks"].append({"chapter": "0", "after": n,
+                                     "text": it["text"]})
+                cur = "0"
+                continue
             # спуск на уровень выше — лишние разряды отбрасываем
             while len(counters) > lvl:
                 counters.pop()
@@ -654,6 +667,7 @@ def build(path, book_id, lemmatize=True, typo_on=False):
                        or c["title"]]
     reg["_binaries"] = meta.get("binaries", {})
     reg["book"]["quotes"] = bool(typo_on)
+    reg["book"]["front"] = front
     reg["book"]["text_sha256"] = hashlib.sha256(
         "\n".join(p["text"] for p in reg["paragraphs"]).encode()).hexdigest()
     return reg
@@ -748,6 +762,22 @@ def check(reg):
             f"Одинаковые первые 5 слов у разных предложений: {len(amb)} групп "
             f"— в панели придётся выбирать из нескольких",
             [f'{v[0]}…: «{k[:40]}»' for k, v in list(amb.items())])
+
+    # подсказка про переднюю часть: её легко не заметить, а последствие —
+    # «Глава I» под номером 2, и это уже не поправить после заморозки
+    FRONT_HINT = re.compile(
+        r"^\s*(предислов|введени|от автора|от редакц|вместо предислов|"
+        r"посвящ|к читател|preface|introduction)", re.I)
+    if not reg["book"].get("front"):
+        tops = [c for c in reg["chapters"]
+                if c["id"] != "0" and "." not in c["id"] and c.get("title")]
+        if tops and FRONT_HINT.search(tops[0]["title"]):
+            add("WARN", "front",
+                f"Первая глава похожа на переднюю часть: "
+                f"«{tops[0]['title'][:44]}». Из-за неё нумерация глав "
+                f"сдвинута на единицу относительно книги. "
+                f"Если это так — пересоберите с "
+                f"--front '{tops[0]['title'].split()[0]}'")
 
     empty = [c["id"] for c in reg["chapters"]
              if c["id"] != "0" and c.get("title")
@@ -2113,6 +2143,10 @@ def main():
     b.add_argument("-o", "--outdir", default=".")
     b.add_argument("--no-lemma", action="store_true",
                    help="без лемматизации (быстрее, хуже ищет)")
+    b.add_argument("--front", default="", metavar="РЕГВЫР",
+                   help="заголовки передней части (предисловия, введения): "
+                        "они не получают номера главы, чтобы «Глава I» стала "
+                        "первой. Например: --front 'Предисловие|Введение'")
     b.add_argument("--quotes", action="store_true",
                    help="привести кавычки к ёлочкам и завести многоточие "
                         "внутрь цитаты (по умолчанию текст не трогается)")
@@ -2145,7 +2179,7 @@ def main():
         outdir = Path(a.outdir)
         outdir.mkdir(parents=True, exist_ok=True)
         reg = build(src, bid, lemmatize=not a.no_lemma,
-                    typo_on=a.quotes)
+                    typo_on=a.quotes, front=a.front)
         write_html(reg, outdir / f"{bid}.html")
         reg.pop("_binaries", None)
         (outdir / f"{bid}.json").write_text(
@@ -2190,7 +2224,8 @@ def main():
             reg = build(
                 src, bid,
                 lemmatize=any("lemma" in x for x in old["sentences"][:1]),
-                typo_on=old["book"].get("quotes", False))
+                typo_on=old["book"].get("quotes", False),
+                front=old["book"].get("front", ""))
             write_html(reg, d / f"{bid}.html")
             reg.pop("_binaries", None)
             rp.write_text(json.dumps(reg, ensure_ascii=False, indent=1),
