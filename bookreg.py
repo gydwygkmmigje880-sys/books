@@ -318,13 +318,26 @@ def read_fb2(path):
             if tag == "subtitle":
                 items.append({"kind": "mark", "text": _fb2_text(el)})
                 continue
+            if tag == "table":
+                rows = []
+                for tr in el.iter("{%s}tr" % FB2NS):
+                    cells = []
+                    for td in tr:
+                        if local(td) not in ("td", "th"):
+                            continue
+                        cells.append((local(td), _fb2_text(td)))
+                    if cells:
+                        rows.append(cells)
+                if rows:
+                    items.append({"kind": "table", "rows": rows})
+                continue
             if tag == "image":
                 href = (el.get("{http://www.w3.org/1999/xlink}href")
                         or el.get("href") or "").lstrip("#")
                 if href and not IMG_JUNK.search(href):
                     items.append({"kind": "image", "href": href})
                 continue
-            if tag not in ("p", "poem", "cite", "epigraph"):
+            if tag not in ("p", "poem", "cite", "epigraph", "stanza"):
                 continue
             # текст в cite/epigraph бывает не в <p>: финал «Манифеста» лежит
             # в <cite><subtitle>, атрибуция цитаты — в <text-author>
@@ -336,7 +349,10 @@ def read_fb2(path):
                 items.append({"kind": "para", "text": t, "refs": refs,
                               "fmt": fmt,
                               "cite": tag in ("cite", "epigraph"),
-                              "author": local(b) == "text-author"})
+                              "author": local(b) == "text-author",
+                              # строка стиха: номер получает как абзац, но
+                              # не выключается по ширине и не отбивается
+                              "verse": local(b) == "v"})
 
     body = root.find("f:body", ns)
     for sec in body.findall("f:section", ns):
@@ -569,7 +585,7 @@ def build(path, book_id, lemmatize=True, typo_on=False, front=""):
                     "source_file": path.name,
                     "source_format": path.suffix.lower().lstrip(".")},
            "chapters": [], "paragraphs": [], "sentences": [],
-           "marks": [], "images": [], "notes": notes}
+           "marks": [], "images": [], "tables": [], "notes": notes}
 
     front_re = re.compile(front, re.I) if front else None
     counters, cur, n = [], "0", 0
@@ -611,6 +627,12 @@ def build(path, book_id, lemmatize=True, typo_on=False, front=""):
         if it["kind"] == "mark":
             reg["marks"].append({"chapter": cur, "after": n,
                                  "text": it["text"]})
+            continue
+        if it["kind"] == "table":
+            # номера не получает — иначе добавление таблиц двигало бы
+            # нумерацию, ровно как было бы с картинками
+            reg["tables"].append({"chapter": cur, "after": n,
+                                  "rows": it["rows"]})
             continue
         if it["kind"] == "image":
             # своего номера не получает: иначе добавление картинок сдвинуло бы
@@ -657,6 +679,8 @@ def build(path, book_id, lemmatize=True, typo_on=False, front=""):
             rec_p["cite"] = True
         if it.get("author"):
             rec_p["author"] = True
+        if it.get("verse"):
+            rec_p["verse"] = True
         if fmts:
             rec_p["fmt"] = fmts
         reg["paragraphs"].append(rec_p)
@@ -876,8 +900,12 @@ def verify(reg, reg_path, map_out=None):
     old = lock["anchors"]
     new = {s["id"]: s["norm"][:70] for s in reg["sentences"]}
 
-    if lock["text_sha256"] == reg["book"]["text_sha256"]:
-        print("✓ текст не менялся, все ссылки в заметках целы")
+    # Сравнивать надо якоря, а не хеш текста. Перенос предисловия в переднюю
+    # часть (--front) сдвигает все номера, не меняя ни одного слова: хеш при
+    # этом совпадает, и проверка по нему сказала бы «всё цело», когда сломаны
+    # все ссылки до единой. Ложное «всё хорошо» опаснее ложной тревоги.
+    if old == new:
+        print("✓ ничего не изменилось, все ссылки в заметках целы")
         return 0
 
     if map_out:
@@ -912,6 +940,47 @@ def verify(reg, reg_path, map_out=None):
         print(f"    rm {lockfile(reg_path)}")
         print(f"    python3 bookreg.py freeze {reg_path}")
         return 0
+
+    # Частый случай — не «поехали отдельные ссылки», а вся книга сдвинута
+    # на одну главу: подключили --front, добавили или убрали предисловие.
+    # Тогда 446 строк списка бесполезны, полезна одна.
+    rev_all = {}
+    for k, v in new.items():
+        rev_all.setdefault(v, k)
+    pairs = [(k, rev_all[old[k]]) for k in old if old[k] in rev_all]
+    shift = None
+    if pairs and len(pairs) > len(old) * 0.9:
+        # без допуска не обойтись: у пары предложений совпадают первые 70
+        # знаков, они сопоставляются не с тем якорем и портят картину.
+        # Смотрим не «все до одного», а подавляющее большинство.
+        counts = {}
+        for a, b in pairs:
+            pa, pb = a.split("."), b.split(".")
+            d = (int(pb[0]) - int(pa[0])
+                 if len(pa) == len(pb) and pa[1:] == pb[1:] else None)
+            counts[d] = counts.get(d, 0) + 1
+        top, n_top = max(counts.items(), key=lambda x: x[1])
+        if top and n_top >= len(pairs) * 0.97:
+            shift = top
+
+    if shift:
+        znak = "уменьшилась" if shift < 0 else "увеличилась"
+        print(f"! вся нумерация сдвинута: первая цифра якоря {znak} "
+              f"на {abs(shift)}\n")
+        print(f"  Затронуты все {len(pairs)} якорей. Текст книги не менялся —")
+        print(f"  сдвинулось только деление на главы. Так бывает от --front,")
+        print(f"  от добавленного или убранного предисловия.\n")
+        print(f"  Сравнение идёт с {lockfile(reg_path).name}, а не с сайтом и")
+        print(f"  не с заметками: про них инструмент ничего не знает. Пока")
+        print(f"  снимок не обновлён, сообщение будет повторяться.\n")
+        ex = sorted(pairs, key=lambda x: [int(i) for i in x[0].split(".")])[:3]
+        for a, b in ex:
+            print(f"    {a}  →  {b}")
+        print(f"\n  Если в заметках уже стоят новые номера — перезаморозьте:")
+        print(f"    rm {lockfile(reg_path)}")
+        print(f"    python3 bookreg.py freeze {reg_path}")
+        print(f"  Если нет — правьте по карте:  --map перенос.tsv")
+        return 1
 
     print("! текст изменился с момента заморозки\n")
     print(f"  исчезли якоря:      {len(gone)}")
@@ -984,6 +1053,13 @@ p>.num{position:absolute;left:-4.6em;top:.25em;width:4em;text-align:right;
  font:.7rem/1.6 ui-monospace,monospace;color:var(--dim);user-select:none}
 p:has(span.s.hl)>.num{color:#c48a00;font-weight:700}
 em{font-style:italic}
+p.verse{text-align:left;margin:0 0 .2em;padding-left:2em;
+ font-style:italic;text-indent:0}
+p.verse+p:not(.verse){margin-top:1.2em}
+table{border-collapse:collapse;margin:1.6rem 0;font-size:.94em;width:100%}
+td,th{border:1px solid #ddd;padding:.4em .6em;text-align:left;
+ vertical-align:top}
+th{background:#f7f4ee;font-weight:600}
 figure{margin:2rem 0;text-align:center}
 figure img{max-width:100%;height:auto;border-radius:4px;
  box-shadow:0 1px 8px #0002}
@@ -1941,6 +2017,9 @@ def write_html(reg, out):
     pics = {}
     for i in reg.get("images", []):
         pics.setdefault((i["chapter"], i["after"]), []).append(i["href"])
+    tabs = {}
+    for i in reg.get("tables", []):
+        tabs.setdefault((i["chapter"], i["after"]), []).append(i["rows"])
 
     def render(t, refs, fmts, back):
         """
@@ -2004,7 +2083,7 @@ def write_html(reg, out):
          '<div id="tagmenu"></div></span></div>'
          '<div id="res"></div></div>',
          f'<h1 id="top">{e(reg["book"]["title"])}</h1>']
-    seen, toc, fronts = set(), [], []
+    seen, toc, fronts, marklist = set(), [], [], []
     for p in reg["paragraphs"]:
         c = p["chapter"]
         if c not in seen:
@@ -2037,11 +2116,21 @@ def write_html(reg, out):
                 L.append(f'<h2 id="{fid}" class="ch front">'
                          f'{e(mk["text"])}</h2>')
             else:
-                L.append(f'<h4 class="mark">{e(mk["text"])}</h4>')
+                # подзаголовок вроде «а) Феодальный социализм»: номера не
+                # получает, но в оглавлении нужен — иначе третья глава
+                # «Манифеста» выглядит сплошным куском
+                mid = "m%d" % len(marklist)
+                marklist.append(mid)
+                toc.append({"id": mid, "title": mk["text"], "sub": True})
+                L.append(f'<h4 id="{mid}" class="mark">{e(mk["text"])}</h4>')
         for href in pics.get((c, p["n"] - 1), []):
             if href in imgs:
                 L.append(f'<figure><img src="{imgs[href]}" alt="" '
                          f'loading="lazy"></figure>')
+        for rows in tabs.get((c, p["n"] - 1), []):
+            L.append("<table>" + "".join(
+                "<tr>" + "".join(f"<{k}>{e(v)}</{k}>" for k, v in row)
+                + "</tr>" for row in rows) + "</table>")
         spans = " ".join(
             f'<span class="s" id="{sid}">'
             + render(sent[sid]["text"], sent[sid].get("notes", []),
@@ -2059,7 +2148,8 @@ def write_html(reg, out):
             toc.append({"id": "p" + p["id"], "title": p["text"], "sub": True})
         cl = (["cite"] if p.get("cite") else []) + \
              (["auth"] if p.get("author") else []) + \
-             (["subh"] if subh else [])
+             (["subh"] if subh else []) + \
+             (["verse"] if p.get("verse") else [])
         cls = f' class="{" ".join(cl)}"' if cl else ""
         anchor = f'<span id="p{p["id"]}" class="hook"></span>' if subh else ""
         L.append(f'{anchor}<p id="{p["id"]}"{cls}>'
