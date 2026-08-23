@@ -6,12 +6,18 @@
 *{box-sizing:border-box}
 body{max-width:40em;margin:0 auto;padding:5rem 1.5rem 8rem;
  font:1.06rem/1.7 Georgia,'PT Serif',serif;color:var(--fg)}
-h1{font-size:1.5rem;margin:0 0 2.5rem}
+h1{font-size:1.5rem;margin:0 0 2.5rem;scroll-margin-top:5rem}
 h2{font-size:1.3rem;margin:3.4rem 0 1.4rem;padding-bottom:.4rem;
  border-bottom:1px solid #e6e2da}
 h3{font-size:1.08rem;margin:2.6rem 0 1.1rem}
 h4.mark{font-size:1rem;font-weight:400;font-style:italic;margin:2rem 0 1rem}
 h2.ch,h3.ch{scroll-margin-top:5rem}
+/* передняя часть — заголовок уровня главы, но без нижней черты:
+   номера у неё нет, и черта делала бы её равной настоящим главам */
+h2.ch.front{border-bottom:0;padding-bottom:0;color:#555}
+span.hook{display:block;height:0;scroll-margin-top:5rem}
+p.subh{margin:2.6rem 0 1.1rem;text-align:left;font-size:1.02rem}
+p.subh strong{font-weight:600;letter-spacing:.02em}
 
 /* --- оглавление по главам --- */
 #toc{position:fixed;left:0;top:0;bottom:0;width:16rem;overflow:auto;z-index:52;
@@ -23,6 +29,10 @@ h2.ch,h3.ch{scroll-margin-top:5rem}
  border-radius:5px;border-left:2px solid transparent;margin-bottom:.1rem}
 #toc a:hover{background:#f2ede3;color:var(--acc)}
 #toc a.sub{padding-left:1.1rem;font-size:.8rem;color:#777}
+#toc a.top{font-weight:600;color:var(--fg);margin-bottom:.7rem;
+ padding-bottom:.55rem;border-bottom:1px solid #e6e2da;border-left:0;
+ border-radius:0}
+#toc a.top:hover{color:var(--acc);background:transparent}
 #toc a.now{color:var(--acc);border-left-color:var(--acc);background:#f7f2e8}
 #tocbtn{border:0;background:0;cursor:pointer;padding:.4rem .25rem;
  display:flex;flex-direction:column;gap:.22rem;align-items:center;flex:0 0 auto}
@@ -187,8 +197,8 @@ body.touch span.s.pick{background:#cfe0ff;box-shadow:inset 0 -2px 0 #7ba7e8}
 @media print{#bar,#tb,#ok{display:none!important}body{padding-top:1rem}}
 </style>
 <div id="bar"><div class="in"><button id="tocbtn" title="Оглавление" aria-label="Оглавление"><i></i><i></i><i></i></button><a id="home" href="../index.html" title="Список книг">&larr; Книги</a><input id="q" placeholder="Найти цитату или номер — 1.14.2 …" autocomplete="off"><span id="cnt"></span><label id="hash" title="Добавлять метку в заметку"><input type="checkbox" id="hashon">метка</label><span id="tagbox" style="display:none"><input id="tag" placeholder="Без метки" autocomplete="off"><button id="tagx" title="Очистить поле">&times;</button><div id="tagmenu"></div></span></div><div id="res"></div></div>
-<div id="tocveil"></div><nav id="toc"><a href="#c1" data-c="1">I. Буржуа и пролетарии</a><a href="#c2" data-c="2">II. Пролетарии и коммунисты</a><a href="#c3" data-c="3">III. Социалистическая и коммунистическая литература</a><a href="#c3.1" data-c="3.1" class="sub">1. Реакционный социализм</a><a href="#c3.2" data-c="3.2" class="sub">2. Консервативный, или буржуазный, социализм</a><a href="#c3.3" data-c="3.3" class="sub">3. Критически-утопический социализм и коммунизм</a><a href="#c4" data-c="4">IV. Отношение коммунистов к различным оппозиционным партиям</a></nav>
-<h1>Манифест Коммунистической партии</h1>
+<div id="tocveil"></div><nav id="toc"><a href="#top" data-c="top" class="top">Манифест Коммунистической партии</a><a href="#c1" data-c="c1">I. Буржуа и пролетарии</a><a href="#c2" data-c="c2">II. Пролетарии и коммунисты</a><a href="#c3" data-c="c3">III. Социалистическая и коммунистическая литература</a><a href="#c3.1" data-c="c3.1" class="sub">1. Реакционный социализм</a><a href="#c3.2" data-c="c3.2" class="sub">2. Консервативный, или буржуазный, социализм</a><a href="#c3.3" data-c="c3.3" class="sub">3. Критически-утопический социализм и коммунизм</a><a href="#c4" data-c="c4">IV. Отношение коммунистов к различным оппозиционным партиям</a></nav>
+<h1 id="top">Манифест Коммунистической партии</h1>
 <figure><img src="manifest_img/cover.png" alt="" loading="lazy"></figure>
 <p id="0.1"><span class="num">0.1</span><span class="s" id="0.1.1"><em>Титульный лист первого издания «Манифеста Коммунистической партии»</em><sup class="nt"><a href="#n_1" title="«Манифест Коммунистической партии» – величайший программный документ научного коммунизма. «Эта небольшая книжечка стоит целых томов: духом ее живет и движется до сих пор весь организованный и борющийся пролетариат цивилизованного мира» (Ленин). Написанный К. Марксом и Ф. Энгельсом в качестве программы Союза коммунистов, «Манифест Коммунистической партии» был впервые опубликован в Лондоне в феврале">1</a></sup></span></p>
 <p id="0.2"><span class="num">0.2</span><span class="s" id="0.2.1">Призрак бродит по Европе – призрак коммунизма.</span> <span class="s" id="0.2.2">Все силы старой Европы объединились для священной травли этого призрака: папа и царь, Меттерних<sup class="nt"><a href="#n_2" title="Меттерних (Metternich), Клеменс, князь (1773—1859) – австрийский государственный деятель и дипломат, министр иностранных дел (1809—1821) и канцлер (1821—1848), ярый реакционер, один из организаторов Священного союза.">2</a></sup> и Гизо<sup class="nt"><a href="#n_3" title="Гизо (Guizot), Франсуа Пьер Гийом (1787—1874) – французский буржуазный историк и государственный деятель, с 1840 по 1848 г. фактически руководил внутренней и внешней политикой, выражал интересы крупной финансовой буржуазии.">3</a></sup>, французские радикалы и немецкие полицейские.</span></p>
@@ -948,7 +958,8 @@ toc && toc.addEventListener('click', function(e){
 
 /* подсветка текущей главы: следим за заголовками, а не за прокруткой —
    так не приходится пересчитывать положение на каждый пиксель */
-var heads = [].slice.call(document.querySelectorAll('h2.ch, h3.ch'));
+var heads = [].slice.call(
+  document.querySelectorAll('h2.ch, h3.ch, span.hook'));
 var links = {};
 toc && [].forEach.call(toc.querySelectorAll('a[data-c]'), function(a){
   links[a.dataset.c] = a;
@@ -972,7 +983,10 @@ function tocSync(){
     if(heads[i].getBoundingClientRect().top <= line) cur = heads[i];
     else break;
   }
-  markNow(cur.id.slice(1));
+  /* id заголовка главы — «c1», якоря подзаголовка — «p0.1»; в оглавлении
+     ключи хранятся без первой буквы у глав и целиком у подзаголовков */
+  var id = cur.id;
+  markNow(links[id] ? id : id.slice(1));
 }
 var tocTick = false;
 addEventListener('scroll', function(){

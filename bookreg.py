@@ -587,7 +587,7 @@ def build(path, book_id, lemmatize=True, typo_on=False, front=""):
                 if typo_on:
                     it["text"] = typo(it["text"])
                 reg["marks"].append({"chapter": "0", "after": n,
-                                     "text": it["text"]})
+                                     "text": it["text"], "front": True})
                 cur = "0"
                 continue
             # спуск на уровень выше — лишние разряды отбрасываем
@@ -940,12 +940,18 @@ CSS = """
 *{box-sizing:border-box}
 body{max-width:40em;margin:0 auto;padding:5rem 1.5rem 8rem;
  font:1.06rem/1.7 Georgia,'PT Serif',serif;color:var(--fg)}
-h1{font-size:1.5rem;margin:0 0 2.5rem}
+h1{font-size:1.5rem;margin:0 0 2.5rem;scroll-margin-top:5rem}
 h2{font-size:1.3rem;margin:3.4rem 0 1.4rem;padding-bottom:.4rem;
  border-bottom:1px solid #e6e2da}
 h3{font-size:1.08rem;margin:2.6rem 0 1.1rem}
 h4.mark{font-size:1rem;font-weight:400;font-style:italic;margin:2rem 0 1rem}
 h2.ch,h3.ch{scroll-margin-top:5rem}
+/* передняя часть — заголовок уровня главы, но без нижней черты:
+   номера у неё нет, и черта делала бы её равной настоящим главам */
+h2.ch.front{border-bottom:0;padding-bottom:0;color:#555}
+span.hook{display:block;height:0;scroll-margin-top:5rem}
+p.subh{margin:2.6rem 0 1.1rem;text-align:left;font-size:1.02rem}
+p.subh strong{font-weight:600;letter-spacing:.02em}
 
 /* --- оглавление по главам --- */
 #toc{position:fixed;left:0;top:0;bottom:0;width:16rem;overflow:auto;z-index:52;
@@ -957,6 +963,10 @@ h2.ch,h3.ch{scroll-margin-top:5rem}
  border-radius:5px;border-left:2px solid transparent;margin-bottom:.1rem}
 #toc a:hover{background:#f2ede3;color:var(--acc)}
 #toc a.sub{padding-left:1.1rem;font-size:.8rem;color:#777}
+#toc a.top{font-weight:600;color:var(--fg);margin-bottom:.7rem;
+ padding-bottom:.55rem;border-bottom:1px solid #e6e2da;border-left:0;
+ border-radius:0}
+#toc a.top:hover{color:var(--acc);background:transparent}
 #toc a.now{color:var(--acc);border-left-color:var(--acc);background:#f7f2e8}
 #tocbtn{border:0;background:0;cursor:pointer;padding:.4rem .25rem;
  display:flex;flex-direction:column;gap:.22rem;align-items:center;flex:0 0 auto}
@@ -1602,7 +1612,8 @@ toc && toc.addEventListener('click', function(e){
 
 /* подсветка текущей главы: следим за заголовками, а не за прокруткой —
    так не приходится пересчитывать положение на каждый пиксель */
-var heads = [].slice.call(document.querySelectorAll('h2.ch, h3.ch'));
+var heads = [].slice.call(
+  document.querySelectorAll('h2.ch, h3.ch, span.hook'));
 var links = {};
 toc && [].forEach.call(toc.querySelectorAll('a[data-c]'), function(a){
   links[a.dataset.c] = a;
@@ -1626,7 +1637,10 @@ function tocSync(){
     if(heads[i].getBoundingClientRect().top <= line) cur = heads[i];
     else break;
   }
-  markNow(cur.id.slice(1));
+  /* id заголовка главы — «c1», якоря подзаголовка — «p0.1»; в оглавлении
+     ключи хранятся без первой буквы у глав и целиком у подзаголовков */
+  var id = cur.id;
+  markNow(links[id] ? id : id.slice(1));
 }
 var tocTick = false;
 addEventListener('scroll', function(){
@@ -1919,7 +1933,7 @@ def write_html(reg, out):
     chap = {c["id"]: c for c in reg["chapters"]}
     marks = {}
     for m in reg["marks"]:
-        marks.setdefault((m["chapter"], m["after"]), []).append(m["text"])
+        marks.setdefault((m["chapter"], m["after"]), []).append(m)
     sent = {s["id"]: s for s in reg["sentences"]}
     notes = reg.get("notes", {})
     used = []
@@ -1989,8 +2003,8 @@ def write_html(reg, out):
          '<button id="tagx" title="Очистить поле">&times;</button>'
          '<div id="tagmenu"></div></span></div>'
          '<div id="res"></div></div>',
-         f'<h1>{e(reg["book"]["title"])}</h1>']
-    seen, toc = set(), []
+         f'<h1 id="top">{e(reg["book"]["title"])}</h1>']
+    seen, toc, fronts = set(), [], []
     for p in reg["paragraphs"]:
         c = p["chapter"]
         if c not in seen:
@@ -2013,7 +2027,17 @@ def write_html(reg, out):
                          + render(t, ch.get("refs", []), ch.get("fmt", []),
                                   f"c{anc}") + f"</{tag}>")
         for mk in marks.get((c, p["n"] - 1), []):
-            L.append(f'<h4 class="mark">{e(mk)}</h4>')
+            # Передняя часть — заголовок раздела, а не заметка на полях:
+            # иначе получается мелкий курсив перед крупным жирным, и в
+            # оглавление она не попадает.
+            if mk.get("front"):
+                fid = "cf%d" % len(fronts)
+                fronts.append(fid)
+                toc.append({"id": fid, "title": mk["text"], "sub": False})
+                L.append(f'<h2 id="{fid}" class="ch front">'
+                         f'{e(mk["text"])}</h2>')
+            else:
+                L.append(f'<h4 class="mark">{e(mk["text"])}</h4>')
         for href in pics.get((c, p["n"] - 1), []):
             if href in imgs:
                 L.append(f'<figure><img src="{imgs[href]}" alt="" '
@@ -2024,11 +2048,22 @@ def write_html(reg, out):
                      sent[sid].get("fmt", []), sid)
             + "</span>"
             for sid in p["sentences"])
+        # Абзац целиком полужирный и короткий — это заголовок, набранный
+        # абзацем: в FB2 так часто оформляют подразделы. Своего номера при
+        # этом не теряет, на него можно ссылаться.
+        fm = p.get("fmt") or []
+        subh = (len(fm) == 1 and fm[0]["t"] == "s" and fm[0]["pos"] == 0
+                and fm[0]["len"] >= len(p["text"]) - 1
+                and len(p["text"]) < 90)
+        if subh:
+            toc.append({"id": "p" + p["id"], "title": p["text"], "sub": True})
         cl = (["cite"] if p.get("cite") else []) + \
-             (["auth"] if p.get("author") else [])
+             (["auth"] if p.get("author") else []) + \
+             (["subh"] if subh else [])
         cls = f' class="{" ".join(cl)}"' if cl else ""
-        L.append(f'<p id="{p["id"]}"{cls}><span class="num">{p["id"]}</span>'
-                 f'{spans}</p>')
+        anchor = f'<span id="p{p["id"]}" class="hook"></span>' if subh else ""
+        L.append(f'{anchor}<p id="{p["id"]}"{cls}>'
+                 f'<span class="num">{p["id"]}</span>{spans}</p>')
 
     # Картинка выводится перед абзацем с номером after+1. Если такого абзаца
     # нет — она стоит в конце главы, и её нужно вывести отдельно, иначе она
@@ -2056,9 +2091,16 @@ def write_html(reg, out):
                               nd.get("fmt", []), nid)
                      + "</li>")
         L.append("</ol>")
-    nav = "".join(
-        '<a href="#c{i}" data-c="{i}"{cls}>{t}</a>'.format(
-            i=x["id"],
+    # Первым пунктом — название книги: возврат в начало. Нужен всегда, но
+    # особенно там, где вступление без заголовка и своего пункта не имеет
+    # (так устроен «Манифест»).
+    nav = ('<a href="#top" data-c="top" class="top">'
+           + e(reg["book"]["title"]) + '</a>')
+    nav += "".join(
+        '<a href="#{h}" data-c="{h}"{cls}>{t}</a>'.format(
+            # «c» приписывается только чистым номерам глав: у подзаголовков
+            # («p1.1») и передней части («f0») id уже готовый
+            h=x["id"] if x["id"][0].isalpha() else "c" + x["id"],
             cls=' class="sub"' if x["sub"] else "",
             t=e(re.sub(r"<[^>]+>", "", x["title"])))
         for x in toc)

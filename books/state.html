@@ -6,12 +6,18 @@
 *{box-sizing:border-box}
 body{max-width:40em;margin:0 auto;padding:5rem 1.5rem 8rem;
  font:1.06rem/1.7 Georgia,'PT Serif',serif;color:var(--fg)}
-h1{font-size:1.5rem;margin:0 0 2.5rem}
+h1{font-size:1.5rem;margin:0 0 2.5rem;scroll-margin-top:5rem}
 h2{font-size:1.3rem;margin:3.4rem 0 1.4rem;padding-bottom:.4rem;
  border-bottom:1px solid #e6e2da}
 h3{font-size:1.08rem;margin:2.6rem 0 1.1rem}
 h4.mark{font-size:1rem;font-weight:400;font-style:italic;margin:2rem 0 1rem}
 h2.ch,h3.ch{scroll-margin-top:5rem}
+/* передняя часть — заголовок уровня главы, но без нижней черты:
+   номера у неё нет, и черта делала бы её равной настоящим главам */
+h2.ch.front{border-bottom:0;padding-bottom:0;color:#555}
+span.hook{display:block;height:0;scroll-margin-top:5rem}
+p.subh{margin:2.6rem 0 1.1rem;text-align:left;font-size:1.02rem}
+p.subh strong{font-weight:600;letter-spacing:.02em}
 
 /* --- оглавление по главам --- */
 #toc{position:fixed;left:0;top:0;bottom:0;width:16rem;overflow:auto;z-index:52;
@@ -23,6 +29,10 @@ h2.ch,h3.ch{scroll-margin-top:5rem}
  border-radius:5px;border-left:2px solid transparent;margin-bottom:.1rem}
 #toc a:hover{background:#f2ede3;color:var(--acc)}
 #toc a.sub{padding-left:1.1rem;font-size:.8rem;color:#777}
+#toc a.top{font-weight:600;color:var(--fg);margin-bottom:.7rem;
+ padding-bottom:.55rem;border-bottom:1px solid #e6e2da;border-left:0;
+ border-radius:0}
+#toc a.top:hover{color:var(--acc);background:transparent}
 #toc a.now{color:var(--acc);border-left-color:var(--acc);background:#f7f2e8}
 #tocbtn{border:0;background:0;cursor:pointer;padding:.4rem .25rem;
  display:flex;flex-direction:column;gap:.22rem;align-items:center;flex:0 0 auto}
@@ -187,16 +197,16 @@ body.touch span.s.pick{background:#cfe0ff;box-shadow:inset 0 -2px 0 #7ba7e8}
 @media print{#bar,#tb,#ok{display:none!important}body{padding-top:1rem}}
 </style>
 <div id="bar"><div class="in"><button id="tocbtn" title="Оглавление" aria-label="Оглавление"><i></i><i></i><i></i></button><a id="home" href="../index.html" title="Список книг">&larr; Книги</a><input id="q" placeholder="Найти цитату или номер — 1.14.2 …" autocomplete="off"><span id="cnt"></span><label id="hash" title="Добавлять метку в заметку"><input type="checkbox" id="hashon">метка</label><span id="tagbox" style="display:none"><input id="tag" placeholder="Без метки" autocomplete="off"><button id="tagx" title="Очистить поле">&times;</button><div id="tagmenu"></div></span></div><div id="res"></div></div>
-<div id="tocveil"></div><nav id="toc"><a href="#c1" data-c="1">Глава I. Классовое общество и государство</a><a href="#c1.1" data-c="1.1" class="sub">1. Государство — продукт непримиримости классовых противоречий</a><a href="#c1.2" data-c="1.2" class="sub">2. Особые отряды вооруженных людей, тюрьмы и пр</a><a href="#c1.3" data-c="1.3" class="sub">3. Государство — орудие эксплуатации угнетенного класса</a><a href="#c1.4" data-c="1.4" class="sub">4. «Отмирание» государства и насильственная революция</a><a href="#c2" data-c="2">Глава II. Государство и революция. Опыт 1848 — 1851 годов</a><a href="#c2.1" data-c="2.1" class="sub">1. Канун революции</a><a href="#c2.2" data-c="2.2" class="sub">2. Итоги революции</a><a href="#c2.3" data-c="2.3" class="sub">3. Постановка вопроса Марксом в 1852 году</a><a href="#c3" data-c="3">Глава III. Государство и революция. Опыт парижской коммуны 1871 года. Анализ Маркса</a><a href="#c3.1" data-c="3.1" class="sub">1. В чем героизм попытки коммунаров?</a><a href="#c3.2" data-c="3.2" class="sub">2. Чем заменить разбитую государственную машину?</a><a href="#c3.3" data-c="3.3" class="sub">3. Уничтожение парламентаризма</a><a href="#c3.4" data-c="3.4" class="sub">4. Организация единства нации</a><a href="#c3.5" data-c="3.5" class="sub">5. Уничтожение паразита — государства</a><a href="#c4" data-c="4">Глава IV. Продолжение. Дополнительные пояснения Энгельса</a><a href="#c4.1" data-c="4.1" class="sub">1. «Жилищный вопрос»</a><a href="#c4.2" data-c="4.2" class="sub">2. Полемика с анархистами</a><a href="#c4.3" data-c="4.3" class="sub">3. Письмо к Бебелю</a><a href="#c4.4" data-c="4.4" class="sub">4. Критика проекта Эрфуртской программы</a><a href="#c4.5" data-c="4.5" class="sub">5. Предисловие 1891-го года к «Гражданской войне» Маркса</a><a href="#c4.6" data-c="4.6" class="sub">6. Энгельс о преодолении демократии</a><a href="#c5" data-c="5">Глава V. Экономические основы отмирания государства</a><a href="#c5.1" data-c="5.1" class="sub">1. Постановка вопроса Марксом</a><a href="#c5.2" data-c="5.2" class="sub">2. Переход от капитализма к коммунизму</a><a href="#c5.3" data-c="5.3" class="sub">3. Первая фаза коммунистического общества</a><a href="#c5.4" data-c="5.4" class="sub">4. Высшая фаза коммунистического общества</a><a href="#c6" data-c="6">Глава VI. Опошление марксизма оппортунистами</a><a href="#c6.1" data-c="6.1" class="sub">1. Полемика Плеханова с анархистами</a><a href="#c6.2" data-c="6.2" class="sub">2. Полемика Каутского с оппортунистами</a><a href="#c6.3" data-c="6.3" class="sub">3. Полемика Каутского с Паннекуком</a><a href="#c7" data-c="7">Послесловие к первому изданию</a></nav>
-<h1>Государство и революция</h1>
-<h4 class="mark">Предисловие</h4>
-<p id="0.1"><span class="num">0.1</span><span class="s" id="0.1.1"><strong>ПРЕДИСЛОВИЕ К ПЕРВОМУ ИЗДАНИЮ</strong></span></p>
+<div id="tocveil"></div><nav id="toc"><a href="#top" data-c="top" class="top">Государство и революция</a><a href="#cf0" data-c="cf0">Предисловие</a><a href="#p0.1" data-c="p0.1" class="sub">ПРЕДИСЛОВИЕ К ПЕРВОМУ ИЗДАНИЮ</a><a href="#p0.7" data-c="p0.7" class="sub">ПРЕДИСЛОВИЕ КО ВТОРОМУ ИЗДАНИЮ</a><a href="#c1" data-c="c1">Глава I. Классовое общество и государство</a><a href="#c1.1" data-c="c1.1" class="sub">1. Государство — продукт непримиримости классовых противоречий</a><a href="#c1.2" data-c="c1.2" class="sub">2. Особые отряды вооруженных людей, тюрьмы и пр</a><a href="#c1.3" data-c="c1.3" class="sub">3. Государство — орудие эксплуатации угнетенного класса</a><a href="#c1.4" data-c="c1.4" class="sub">4. «Отмирание» государства и насильственная революция</a><a href="#c2" data-c="c2">Глава II. Государство и революция. Опыт 1848 — 1851 годов</a><a href="#c2.1" data-c="c2.1" class="sub">1. Канун революции</a><a href="#c2.2" data-c="c2.2" class="sub">2. Итоги революции</a><a href="#c2.3" data-c="c2.3" class="sub">3. Постановка вопроса Марксом в 1852 году</a><a href="#c3" data-c="c3">Глава III. Государство и революция. Опыт парижской коммуны 1871 года. Анализ Маркса</a><a href="#c3.1" data-c="c3.1" class="sub">1. В чем героизм попытки коммунаров?</a><a href="#c3.2" data-c="c3.2" class="sub">2. Чем заменить разбитую государственную машину?</a><a href="#c3.3" data-c="c3.3" class="sub">3. Уничтожение парламентаризма</a><a href="#c3.4" data-c="c3.4" class="sub">4. Организация единства нации</a><a href="#c3.5" data-c="c3.5" class="sub">5. Уничтожение паразита — государства</a><a href="#c4" data-c="c4">Глава IV. Продолжение. Дополнительные пояснения Энгельса</a><a href="#c4.1" data-c="c4.1" class="sub">1. «Жилищный вопрос»</a><a href="#c4.2" data-c="c4.2" class="sub">2. Полемика с анархистами</a><a href="#c4.3" data-c="c4.3" class="sub">3. Письмо к Бебелю</a><a href="#c4.4" data-c="c4.4" class="sub">4. Критика проекта Эрфуртской программы</a><a href="#c4.5" data-c="c4.5" class="sub">5. Предисловие 1891-го года к «Гражданской войне» Маркса</a><a href="#c4.6" data-c="c4.6" class="sub">6. Энгельс о преодолении демократии</a><a href="#c5" data-c="c5">Глава V. Экономические основы отмирания государства</a><a href="#c5.1" data-c="c5.1" class="sub">1. Постановка вопроса Марксом</a><a href="#c5.2" data-c="c5.2" class="sub">2. Переход от капитализма к коммунизму</a><a href="#c5.3" data-c="c5.3" class="sub">3. Первая фаза коммунистического общества</a><a href="#c5.4" data-c="c5.4" class="sub">4. Высшая фаза коммунистического общества</a><a href="#c6" data-c="c6">Глава VI. Опошление марксизма оппортунистами</a><a href="#c6.1" data-c="c6.1" class="sub">1. Полемика Плеханова с анархистами</a><a href="#c6.2" data-c="c6.2" class="sub">2. Полемика Каутского с оппортунистами</a><a href="#c6.3" data-c="c6.3" class="sub">3. Полемика Каутского с Паннекуком</a><a href="#c7" data-c="c7">Послесловие к первому изданию</a></nav>
+<h1 id="top">Государство и революция</h1>
+<h2 id="cf0" class="ch front">Предисловие</h2>
+<span id="p0.1" class="hook"></span><p id="0.1" class="subh"><span class="num">0.1</span><span class="s" id="0.1.1"><strong>ПРЕДИСЛОВИЕ К ПЕРВОМУ ИЗДАНИЮ</strong></span></p>
 <p id="0.2"><span class="num">0.2</span><span class="s" id="0.2.1">Вопрос о государстве приобретает в настоящее время особенную важность и в теоретическом и в практически-политическом отношениях.</span> <span class="s" id="0.2.2">Империалистская война чрезвычайно ускорила и обострила процесс превращения монополистического капитализма в государственно-монополистический капитализм.</span> <span class="s" id="0.2.3">Чудовищное угнетение трудящихся масс государством, которое теснее и теснее сливается с всесильными союзами капиталистов, становится все чудовищнее.</span> <span class="s" id="0.2.4">Передовые страны превращаются — мы говорим о «тыле» их — в военно-каторжные тюрьмы для рабочих.</span></p>
 <p id="0.3"><span class="num">0.3</span><span class="s" id="0.3.1">Неслыханные ужасы и бедствия затягивающейся войны делают положение масс невыносимым, усиливают возмущение их.</span> <span class="s" id="0.3.2">Явно нарастает международная пролетарская революция.</span> <span class="s" id="0.3.3">Вопрос об отношении ее к государству приобретает практическое значение.</span></p>
 <p id="0.4"><span class="num">0.4</span><span class="s" id="0.4.1">Накопленные десятилетиями сравнительно мирного развития элементы оппортунизма создали господствующее в официальных социалистических партиях всего мира течение социал-шовинизма.</span> <span class="s" id="0.4.2">Это течение (Плеханов, Потресов, Брешковская, Рубанович, затем в чуточку прикрытой форме гг.</span> <span class="s" id="0.4.3">Церетели, Чернов и К° в России;</span> <span class="s" id="0.4.4">Шейдеман, Легин, Давид и пр. в Германии;</span> <span class="s" id="0.4.5">Ренодель, Гед, Вандервельд во Франции и Бельгии;</span> <span class="s" id="0.4.6">Гайндман и фабианцы<sup class="nt"><a href="#n_1" title="Фабианцы — члены реформистского, крайне оппортунистического &quot;Общества фабианцев&quot;, основанного группой буржуазной интеллигенции в Англии в 1884 году. Оно названо по имени римского полководца Фабия Кунктатора (&quot;Медлителя&quot;), известного своей выжидательной тактикой, уклонением от решительных боев. Фабианское общество, по выражению Ленина, представляет собой &quot;самое законченное ">1</a></sup> в Англии и т. д. и т. д.), социализм на словах, шовинизм на деле, отличается подлым лакейским приспособлением «вождей социализма» к интересам не только «своей» национальной буржуазии, но именно «своего» государства, ибо большинство так называемых великих держав давно эксплуатирует и порабощает целый ряд мелких и слабых народностей.</span> <span class="s" id="0.4.7">А империалистская война является как раз войной за раздел и передел этого рода добычи.</span> <span class="s" id="0.4.8">Борьба за высвобождение трудящихся масс из-под влияния буржуазии вообще, и империалистской буржуазии в особенности, невозможна без борьбы с оппортунистическими предрассудками насчет «государства».</span></p>
 <p id="0.5"><span class="num">0.5</span><span class="s" id="0.5.1">Мы рассматриваем сначала учение Маркса и Энгельса о государстве, останавливаясь особенно подробно на забытых или подвергшихся оппортунистическому искажению сторонах этого учения.</span> <span class="s" id="0.5.2">Мы разберем затем специально главного представителя этих искажений, Карла Каутского, наиболее известного вождя второго Интернационала (1889 — 1914 гг.), который потерпел такое жалкое банкротство во время настоящей войны.</span> <span class="s" id="0.5.3">Мы подведем, наконец, главные итоги опыта русских революций 1905 и особенно 1917-го года.</span> <span class="s" id="0.5.4">Эта последняя, видимо, заканчивает в настоящее время (начало августа 1917 г.) первую полосу своего развития, но вся эта революция вообще может быть понята лишь как одно из звеньев в цепи социалистических пролетарских революций, вызываемых империалистской войной.</span> <span class="s" id="0.5.5">Вопрос об отношении социалистической революции пролетариата к государству приобретает таким образом не только практически-политическое значение, но и самое злободневное значение, как вопрос о разъяснении массам того, что они должны будут делать, для своего освобождения от ига капитала, в ближайшем будущем.</span></p>
 <p id="0.6"><span class="num">0.6</span><span class="s" id="0.6.1">Август 1917 г.</span></p>
-<p id="0.7"><span class="num">0.7</span><span class="s" id="0.7.1"><strong>ПРЕДИСЛОВИЕ КО ВТОРОМУ ИЗДАНИЮ</strong></span></p>
+<span id="p0.7" class="hook"></span><p id="0.7" class="subh"><span class="num">0.7</span><span class="s" id="0.7.1"><strong>ПРЕДИСЛОВИЕ КО ВТОРОМУ ИЗДАНИЮ</strong></span></p>
 <p id="0.8"><span class="num">0.8</span><span class="s" id="0.8.1">Настоящее, второе, издание печатается почти без перемен.</span> <span class="s" id="0.8.2">Добавлен только параграф 3-й к главе 11-й.</span></p>
 <p id="0.9"><span class="num">0.9</span><span class="s" id="0.9.1">Москва.</span> <span class="s" id="0.9.2">17 декабря 1918 г.</span></p>
 <h2 id="c1" class="ch">Глава I. Классовое общество и государство</h2>
@@ -1206,7 +1216,8 @@ toc && toc.addEventListener('click', function(e){
 
 /* подсветка текущей главы: следим за заголовками, а не за прокруткой —
    так не приходится пересчитывать положение на каждый пиксель */
-var heads = [].slice.call(document.querySelectorAll('h2.ch, h3.ch'));
+var heads = [].slice.call(
+  document.querySelectorAll('h2.ch, h3.ch, span.hook'));
 var links = {};
 toc && [].forEach.call(toc.querySelectorAll('a[data-c]'), function(a){
   links[a.dataset.c] = a;
@@ -1230,7 +1241,10 @@ function tocSync(){
     if(heads[i].getBoundingClientRect().top <= line) cur = heads[i];
     else break;
   }
-  markNow(cur.id.slice(1));
+  /* id заголовка главы — «c1», якоря подзаголовка — «p0.1»; в оглавлении
+     ключи хранятся без первой буквы у глав и целиком у подзаголовков */
+  var id = cur.id;
+  markNow(links[id] ? id : id.slice(1));
 }
 var tocTick = false;
 addEventListener('scroll', function(){
