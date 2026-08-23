@@ -14,13 +14,15 @@ p>.num{position:absolute;left:-4.6em;top:.25em;width:4em;text-align:right;
  font:.7rem/1.6 ui-monospace,monospace;color:var(--dim);user-select:none}
 p:has(span.s.hl)>.num{color:#c48a00;font-weight:700}
 em{font-style:italic}
-p.auth{margin-left:1.6em;padding-left:1em;text-align:right;font-size:.88em;
- color:#666;font-style:italic}
 figure{margin:2rem 0;text-align:center}
 figure img{max-width:100%;height:auto;border-radius:4px;
  box-shadow:0 1px 8px #0002}
 p.cite{margin-left:1.6em;padding-left:1em;border-left:2px solid #ddd;
  font-size:.96em;color:#333;text-align:left}
+/* после p.cite: атрибуция приходит с обоими классами, и при равной
+   специфичности выигрывает то правило, что стоит ниже */
+p.auth{margin-left:1.6em;padding-left:1em;border-left:0;text-align:right;
+ font-size:.86em;color:#777;font-style:italic}
 span.s{scroll-margin-top:40vh}
 span.s:target,span.s.hl{background:var(--hi)}
 /* Бледная заливка — что попадёт в ссылку (всегда целое предложение,
