@@ -911,8 +911,34 @@ CSS = """
 body{max-width:40em;margin:0 auto;padding:5rem 1.5rem 8rem;
  font:1.06rem/1.7 Georgia,'PT Serif',serif;color:var(--fg)}
 h1{font-size:1.5rem;margin:0 0 2.5rem}
-h2{font-size:1.15rem;margin:3rem 0 1.2rem}
-h3{font-size:1rem;font-weight:400;font-style:italic;margin:2rem 0 1rem}
+h2{font-size:1.3rem;margin:3.4rem 0 1.4rem;padding-bottom:.4rem;
+ border-bottom:1px solid #e6e2da}
+h3{font-size:1.08rem;margin:2.6rem 0 1.1rem}
+h4.mark{font-size:1rem;font-weight:400;font-style:italic;margin:2rem 0 1rem}
+h2.ch,h3.ch{scroll-margin-top:5rem}
+
+/* --- оглавление по главам --- */
+#toc{position:fixed;left:0;top:0;bottom:0;width:16rem;overflow:auto;z-index:52;
+ padding:4.6rem 1rem 3rem 1.4rem;background:#fffdfaf7;
+ border-right:1px solid #e6e2da;font:.84rem/1.4 system-ui,sans-serif;
+ display:none;backdrop-filter:blur(6px)}
+#toc.show{display:block}
+#toc a{display:block;color:#555;text-decoration:none;padding:.3rem .4rem;
+ border-radius:5px;border-left:2px solid transparent;margin-bottom:.1rem}
+#toc a:hover{background:#f2ede3;color:var(--acc)}
+#toc a.sub{padding-left:1.1rem;font-size:.8rem;color:#777}
+#toc a.now{color:var(--acc);border-left-color:var(--acc);background:#f7f2e8}
+#tocbtn{border:0;background:0;cursor:pointer;padding:.4rem .25rem;
+ display:flex;flex-direction:column;gap:.22rem;align-items:center;flex:0 0 auto}
+#tocbtn i{display:block;width:1.05rem;height:2px;background:#666;border-radius:2px}
+#tocbtn:hover i{background:var(--acc)}
+#tocveil{display:none;position:fixed;inset:0;background:#0005;z-index:51}
+#tocveil.show{display:block}
+@media(min-width:1180px){
+ #toc{display:block;background:transparent;border-right:0;backdrop-filter:none}
+ #tocveil{display:none!important}
+ #tocbtn{display:none}
+}
 p{margin:0 0 1.1em;text-align:justify;position:relative}
 p>.num{position:absolute;left:-4.6em;top:.25em;width:4em;text-align:right;
  font:.7rem/1.6 ui-monospace,monospace;color:var(--dim);user-select:none}
@@ -1522,6 +1548,64 @@ addEventListener('keydown', function(e){
   }
 });
 
+/* ---------- оглавление ---------- */
+var toc = document.getElementById('toc'),
+    tocBtn = document.getElementById('tocbtn'),
+    tocVeil = document.getElementById('tocveil');
+var WIDE = matchMedia('(min-width: 1180px)');
+
+function tocSet(on){
+  if(!toc) return;
+  toc.classList.toggle('show', on);
+  tocVeil && tocVeil.classList.toggle('show', on && !WIDE.matches);
+  document.body.style.overflow = (on && !WIDE.matches) ? 'hidden' : '';
+}
+tocBtn && tocBtn.addEventListener('click', function(){
+  tocSet(!toc.classList.contains('show'));
+});
+tocVeil && tocVeil.addEventListener('click', function(){ tocSet(false); });
+/* переход по ссылке закрывает панель, иначе она заслоняет то место,
+   к которому только что перешли */
+toc && toc.addEventListener('click', function(e){
+  if(e.target.closest('a') && !WIDE.matches) tocSet(false);
+});
+
+/* подсветка текущей главы: следим за заголовками, а не за прокруткой —
+   так не приходится пересчитывать положение на каждый пиксель */
+var heads = [].slice.call(document.querySelectorAll('h2.ch, h3.ch'));
+var links = {};
+toc && [].forEach.call(toc.querySelectorAll('a[data-c]'), function(a){
+  links[a.dataset.c] = a;
+});
+function markNow(id){
+  for(var k in links) links[k].classList.toggle('now', k === id);
+  var a = links[id];
+  if(a && toc && toc.classList.contains('show')){
+    var r = a.getBoundingClientRect(), t = toc.getBoundingClientRect();
+    if(r.top < t.top + 40 || r.bottom > t.bottom - 40)
+      a.scrollIntoView({block:'center'});
+  }
+}
+/* Текущая глава — последний заголовок выше верхней трети экрана.
+   Считаем на прокрутке с ограничением по кадру: заголовков десятки,
+   перебор дешевле наблюдателя и не зависит от порядка событий. */
+function tocSync(){
+  if(!heads.length) return;
+  var line = innerHeight * 0.3, cur = heads[0];
+  for(var i = 0; i < heads.length; i++){
+    if(heads[i].getBoundingClientRect().top <= line) cur = heads[i];
+    else break;
+  }
+  markNow(cur.id.slice(1));
+}
+var tocTick = false;
+addEventListener('scroll', function(){
+  if(tocTick) return;
+  tocTick = true;
+  requestAnimationFrame(function(){ tocTick = false; tocSync(); });
+}, {passive: true});
+tocSync();
+
 /* ---------- переключатель меток ---------- */
 var hashon = document.getElementById('hashon');
 var tagIn = document.getElementById('tag');
@@ -1862,6 +1946,8 @@ def write_html(reg, out):
          '<meta name="viewport" content="width=device-width,initial-scale=1">',
          f'<title>{e(reg["book"]["title"])}</title>', f"<style>{CSS}</style>",
          '<div id="bar"><div class="in">'
+         '<button id="tocbtn" title="Оглавление" aria-label="Оглавление">'
+         '<i></i><i></i><i></i></button>'
          '<a id="home" href="../index.html" title="Список книг">&larr; Книги</a>'
          '<input id="q" placeholder="Найти цитату или номер — 1.14.2 …" '
          'autocomplete="off"><span id="cnt"></span>'
@@ -1874,19 +1960,30 @@ def write_html(reg, out):
          '<div id="tagmenu"></div></span></div>'
          '<div id="res"></div></div>',
          f'<h1>{e(reg["book"]["title"])}</h1>']
-    seen = set()
+    seen, toc = set(), []
     for p in reg["paragraphs"]:
         c = p["chapter"]
         if c not in seen:
-            seen.add(c)
-            ch = chap.get(c, {})
-            t = ch.get("title", "")
-            if t:
-                L.append(f'<h2 id="c{c}">'
+            # Заголовки всех глав-предков, а не только той, которой принадлежит
+            # абзац: глава-контейнер своих абзацев не имеет, и её название
+            # иначе не выводится вообще.
+            parts = c.split(".")
+            for k in range(1, len(parts) + 1):
+                anc = ".".join(parts[:k])
+                if anc in seen:
+                    continue
+                seen.add(anc)
+                ch = chap.get(anc, {})
+                t = ch.get("title", "")
+                if not t:
+                    continue
+                tag = "h2" if k == 1 else "h3"
+                toc.append({"id": anc, "title": t, "sub": k > 1})
+                L.append(f'<{tag} id="c{anc}" class="ch">'
                          + render(t, ch.get("refs", []), ch.get("fmt", []),
-                                  f"c{c}") + "</h2>")
+                                  f"c{anc}") + f"</{tag}>")
         for mk in marks.get((c, p["n"] - 1), []):
-            L.append(f"<h3>{e(mk)}</h3>")
+            L.append(f'<h4 class="mark">{e(mk)}</h4>')
         for href in pics.get((c, p["n"] - 1), []):
             if href in imgs:
                 L.append(f'<figure><img src="{imgs[href]}" alt="" '
@@ -1929,6 +2026,14 @@ def write_html(reg, out):
                               nd.get("fmt", []), nid)
                      + "</li>")
         L.append("</ol>")
+    nav = "".join(
+        '<a href="#c{i}" data-c="{i}"{cls}>{t}</a>'.format(
+            i=x["id"],
+            cls=' class="sub"' if x["sub"] else "",
+            t=e(re.sub(r"<[^>]+>", "", x["title"])))
+        for x in toc)
+    L.insert(5, f'<div id="tocveil"></div><nav id="toc">{nav}</nav>')
+
     idx = [[s["id"], s["norm"]] for s in reg["sentences"]]
     L.append("<script>var BOOK=" +
              json.dumps(reg["book"]["id"]) + ";</script>")
