@@ -828,7 +828,7 @@ def freeze(reg, reg_path):
     print("С этого момента нумерация раздана участникам и меняться не должна.")
 
 
-def verify(reg, reg_path):
+def verify(reg, reg_path, map_out=None):
     lp = lockfile(reg_path)
     if not lp.exists():
         sys.exit(f"Нет {lp.name} — нумерация ещё не заморожена (bookreg freeze)")
@@ -840,14 +840,41 @@ def verify(reg, reg_path):
         print("✓ текст не менялся, все ссылки в заметках целы")
         return 0
 
+    if map_out:
+        # полная карта «старый якорь → новый»: по ней правятся заметки
+        rev = {}
+        for k, v in new.items():
+            rev.setdefault(v, k)
+        rows = ["старый\tновый\tтекст"]
+        moved_n = 0
+        for k in sorted(old, key=lambda x: [int(i) for i in x.split(".")]):
+            dst = rev.get(old[k])
+            if dst == k:
+                continue
+            moved_n += 1
+            rows.append(f"{k}\t{dst or 'ПОТЕРЯНО'}\t{old[k][:60]}")
+        Path(map_out).write_text("\n".join(rows), encoding="utf-8")
+        print(f"Карта переносов: {moved_n} строк → {map_out}\n")
+
     gone = [k for k in old if k not in new]
     added = [k for k in new if k not in old]
     moved = [k for k in old if k in new and old[k] != new[k]]
 
+    if not gone and not added and not moved:
+        # текст правили, но границы предложений не двинулись: опечатка,
+        # кавычки, курсив. Ссылки в заметках целы, нужна только перезаморозка
+        print("✓ текст изменился, но все якоря на месте — ссылки в заметках "
+              "целы")
+        print("  Так бывает после правки опечаток, кавычек или оформления.")
+        print(f"  Перезаморозьте:  rm {lockfile(reg_path).name} && "
+              f"bookreg.py freeze {Path(reg_path).name}")
+        return 0
+
     print("! текст изменился с момента заморозки\n")
     print(f"  исчезли якоря:      {len(gone)}")
     print(f"  появились новые:    {len(added)}")
-    print(f"  номер стал другим:  {len(moved)}   ← ЭТО ОПАСНО")
+    print(f"  номер стал другим:  {len(moved)}"
+          + ("   ← ЭТО ОПАСНО" if moved else ""))
     if moved:
         print("\n  Эти ссылки в заметках теперь указывают не туда:")
         # ищем, куда уехал старый текст
@@ -1980,6 +2007,8 @@ def main():
 
     v = sub.add_parser("verify", help="сравнить с замороженной нумерацией")
     v.add_argument("registry")
+    v.add_argument("--map", metavar="ФАЙЛ",
+                   help="выгрузить полную карту «старый якорь → новый» в TSV")
 
     rb = sub.add_parser("rebuild",
                         help="пересобрать все книги папки из их исходников")
@@ -2023,7 +2052,7 @@ def main():
         freeze(reg, a.registry)
 
     if a.cmd == "verify":
-        sys.exit(verify(load(a.registry), a.registry))
+        sys.exit(verify(load(a.registry), a.registry, a.map))
 
     if a.cmd == "rebuild":
         d = Path(a.dir)
