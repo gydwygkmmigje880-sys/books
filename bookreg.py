@@ -1005,43 +1005,87 @@ def verify(reg, reg_path, map_out=None):
 # ===========================================================================
 
 CSS = """
-:root{--fg:#1a1a1a;--dim:#9a9a9a;--hi:#fff3bf;--acc:#b06000}
+:root{--bg:#fffdfa;--fg:#1a1a1a;--soft:#555;--soft2:#777;--dim:#9a9a9a;
+ --line:var(--line);--line2:#ddd;--panel:#fff;--hover:#f2ede3;--tint:#f7f4ee;
+ --acc:#b06000;--hi:#fff3bf;--hinum:#c48a00;--pick:#eef4fd;--pickline:#b9d0ee;
+ --raw:rgba(120,170,255,.34);--rawmix:multiply;--danger:#c33;
+ --barbg:#fffffff2;--tocbg:#fffdfaf7;--tb:#1a1a1a;--tbfg:#fff;--tbacc:#ffd479;
+ --shadow:#0002;--shadow2:#0004;--veil:#0005;--imgfilter:none;
+ --sel:#bcd8fb;--selfg:#111}
 *{box-sizing:border-box}
+html[data-theme="sepia"]{
+ --bg:#f5eddc;--fg:#43392e;--soft:#6b5d4d;--soft2:#7d6f5e;--dim:#a3937c;
+ --line:#ddd0b8;--line2:#cfc0a4;--panel:#fbf6ea;--hover:#eadfc7;--tint:#ede2cc;
+ --acc:#9a5b1e;--hi:#ffe9a8;--hinum:#a8781f;--pick:#dfe6f2;--pickline:#a9bcd6;
+ --raw:rgba(110,150,215,.30);--rawmix:multiply;--danger:#a83232;
+ --barbg:#f5eddcf2;--tocbg:#f5eddcf7;--tb:#3a3229;--tbfg:#f7f1e4;
+ --tbacc:#ffd479;--shadow:#0002;--shadow2:#0003;--veil:#0005;
+ --imgfilter:sepia(.12);--sel:#e2d3a8;--selfg:#2e261d}
+html[data-theme="dark"]{
+ --bg:#1b1a18;--fg:#ddd8d0;--soft:#a8a29a;--soft2:#8d8880;--dim:#6f6a63;
+ --line:#33312e;--line2:#3d3a36;--panel:#242220;--hover:#2b2926;--tint:#232120;
+ --acc:#e8a25c;--hi:#4a3d17;--hinum:#d9a441;--pick:#22304a;--pickline:#4a6c99;
+ --raw:rgba(120,160,225,.18);--rawmix:normal;--danger:#e07070;
+ --barbg:#1b1a18f2;--tocbg:#1b1a18f7;--tb:#34312d;--tbfg:#f2eee8;
+ --tbacc:#ffd479;--shadow:#0006;--shadow2:#0008;--veil:#0008;
+ --imgfilter:brightness(.85) contrast(1.05);
+ --sel:#44618c;--selfg:#fff}
+html{background:var(--bg)}
+figure img{filter:var(--imgfilter)}
+/* Системное выделение по умолчанию — яркая синь с белым текстом. Поверх
+   собственной подсветки предложения это становится нечитаемым, особенно
+   в тёмной теме. Задаём своё. */
+::selection{background:var(--sel);color:var(--selfg)}
+/* ширина фиксирована: ◑ ◕ ● имеют разную ширину, и без этого строка
+   поиска дёргалась при каждом переключении темы */
+/* Значок рисуется кружком, а не символом: у ◑ ◕ ● разная геометрия в любом
+   шрифте, и кнопка меняла размер при переключении. */
+#themebtn{border:0;background:0;cursor:pointer;padding:0;color:var(--soft);
+ flex:0 0 1.7rem;width:1.7rem;height:1.7rem;
+ display:inline-flex;align-items:center;justify-content:center}
+#themebtn i{width:.95rem;height:.95rem;border-radius:50%;display:block;
+ border:1.5px solid currentColor;box-sizing:border-box;
+ background:linear-gradient(90deg,currentColor 50%,transparent 50%)}
+html[data-theme="sepia"] #themebtn i{
+ background:linear-gradient(90deg,currentColor 78%,transparent 78%)}
+html[data-theme="dark"] #themebtn i{background:currentColor}
+#themebtn:hover{color:var(--acc)}
 body{max-width:40em;margin:0 auto;padding:5rem 1.5rem 8rem;
+ background:var(--bg);
  font:1.06rem/1.7 Georgia,'PT Serif',serif;color:var(--fg)}
 h1{font-size:1.5rem;margin:0 0 2.5rem;scroll-margin-top:5rem}
 h2{font-size:1.3rem;margin:3.4rem 0 1.4rem;padding-bottom:.4rem;
- border-bottom:1px solid #e6e2da}
+ border-bottom:1px solid var(--line)}
 h3{font-size:1.08rem;margin:2.6rem 0 1.1rem}
 h4.mark{font-size:1rem;font-weight:400;font-style:italic;margin:2rem 0 1rem}
 h2.ch,h3.ch{scroll-margin-top:5rem}
 /* передняя часть — заголовок уровня главы, но без нижней черты:
    номера у неё нет, и черта делала бы её равной настоящим главам */
-h2.ch.front{border-bottom:0;padding-bottom:0;color:#555}
+h2.ch.front{border-bottom:0;padding-bottom:0;color:var(--soft)}
 span.hook{display:block;height:0;scroll-margin-top:5rem}
 p.subh{margin:2.6rem 0 1.1rem;text-align:left;font-size:1.02rem}
 p.subh strong{font-weight:600;letter-spacing:.02em}
 
 /* --- оглавление по главам --- */
 #toc{position:fixed;left:0;top:0;bottom:0;width:16rem;overflow:auto;z-index:52;
- padding:4.6rem 1rem 3rem 1.4rem;background:#fffdfaf7;
- border-right:1px solid #e6e2da;font:.84rem/1.4 system-ui,sans-serif;
+ padding:4.6rem 1rem 3rem 1.4rem;background:var(--tocbg);
+ border-right:1px solid var(--line);font:.84rem/1.4 system-ui,sans-serif;
  display:none;backdrop-filter:blur(6px)}
 #toc.show{display:block}
-#toc a{display:block;color:#555;text-decoration:none;padding:.3rem .4rem;
+#toc a{display:block;color:var(--soft);text-decoration:none;padding:.3rem .4rem;
  border-radius:5px;border-left:2px solid transparent;margin-bottom:.1rem}
-#toc a:hover{background:#f2ede3;color:var(--acc)}
-#toc a.sub{padding-left:1.1rem;font-size:.8rem;color:#777}
+#toc a:hover{background:var(--hover);color:var(--acc)}
+#toc a.sub{padding-left:1.1rem;font-size:.8rem;color:var(--soft2)}
 #toc a.top{font-weight:600;color:var(--fg);margin-bottom:.7rem;
- padding-bottom:.55rem;border-bottom:1px solid #e6e2da;border-left:0;
+ padding-bottom:.55rem;border-bottom:1px solid var(--line);border-left:0;
  border-radius:0}
 #toc a.top:hover{color:var(--acc);background:transparent}
-#toc a.now{color:var(--acc);border-left-color:var(--acc);background:#f7f2e8}
+#toc a.now{color:var(--acc);border-left-color:var(--acc);background:var(--hover)}
 #tocbtn{border:0;background:0;cursor:pointer;padding:.4rem .25rem;
  display:flex;flex-direction:column;gap:.22rem;align-items:center;flex:0 0 auto}
-#tocbtn i{display:block;width:1.05rem;height:2px;background:#666;border-radius:2px}
+#tocbtn i{display:block;width:1.05rem;height:2px;background:var(--soft);border-radius:2px}
 #tocbtn:hover i{background:var(--acc)}
-#tocveil{display:none;position:fixed;inset:0;background:#0005;z-index:51}
+#tocveil{display:none;position:fixed;inset:0;background:var(--veil);z-index:51}
 #tocveil.show{display:block}
 @media(min-width:1180px){
  #toc{display:block;background:transparent;border-right:0;backdrop-filter:none}
@@ -1051,35 +1095,35 @@ p.subh strong{font-weight:600;letter-spacing:.02em}
 p{margin:0 0 1.1em;text-align:justify;position:relative}
 p>.num{position:absolute;left:-4.6em;top:.25em;width:4em;text-align:right;
  font:.7rem/1.6 ui-monospace,monospace;color:var(--dim);user-select:none}
-p:has(span.s.hl)>.num{color:#c48a00;font-weight:700}
+p:has(span.s.hl)>.num{color:var(--hinum);font-weight:700}
 em{font-style:italic}
 p.verse{text-align:left;margin:0 0 .2em;padding-left:2em;
  font-style:italic;text-indent:0}
 p.verse+p:not(.verse){margin-top:1.2em}
 table{border-collapse:collapse;margin:1.6rem 0;font-size:.94em;width:100%}
-td,th{border:1px solid #ddd;padding:.4em .6em;text-align:left;
+td,th{border:1px solid var(--line2);padding:.4em .6em;text-align:left;
  vertical-align:top}
-th{background:#f7f4ee;font-weight:600}
+th{background:var(--tint);font-weight:600}
 figure{margin:2rem 0;text-align:center}
 figure img{max-width:100%;height:auto;border-radius:4px;
- box-shadow:0 1px 8px #0002}
-p.cite{margin-left:1.6em;padding-left:1em;border-left:2px solid #ddd;
- font-size:.96em;color:#333;text-align:left}
+ box-shadow:0 1px 8px var(--shadow)}
+p.cite{margin-left:1.6em;padding-left:1em;border-left:2px solid var(--line2);
+ font-size:.96em;color:var(--soft);text-align:left}
 /* после p.cite: атрибуция приходит с обоими классами, и при равной
    специфичности выигрывает то правило, что стоит ниже */
 p.auth{margin-left:1.6em;padding-left:1em;border-left:0;text-align:right;
- font-size:.86em;color:#777;font-style:italic}
+ font-size:.86em;color:var(--soft2);font-style:italic}
 span.s{scroll-margin-top:40vh}
 span.s:target,span.s.hl{background:var(--hi)}
 /* Бледная заливка — что попадёт в ссылку (всегда целое предложение,
    на половину сослаться нельзя). Поверх — накладка на том, что реально
    выделено мышкой. Два разных факта, два разных цвета. */
-span.s.pick{background:#eef4fd;box-shadow:inset 0 -1px 0 #b9d0ee}
-.rawsel{position:absolute;background:rgba(120,170,255,.34);border-radius:2px;
- pointer-events:none;z-index:1;mix-blend-mode:multiply}
+span.s.pick{background:var(--pick);box-shadow:inset 0 -1px 0 var(--pickline)}
+.rawsel{position:absolute;background:var(--raw);border-radius:2px;
+ pointer-events:none;z-index:1;mix-blend-mode:var(--rawmix)}
 sup.nt{font-size:.62em;line-height:0;user-select:none}
 sup.nt a{color:var(--acc);text-decoration:none;padding:0 .15em}
-ol.notes{margin-top:1rem;font-size:.9rem;color:#444;list-style:none;padding:0}
+ol.notes{margin-top:1rem;font-size:.9rem;color:var(--soft);list-style:none;padding:0}
 ol.notes li{margin:0 0 .7em;scroll-margin-top:40vh}
 ol.notes li:target{background:var(--hi)}
 a.back{color:var(--acc);text-decoration:none;font-weight:700;margin-right:.4em}
@@ -1105,7 +1149,7 @@ body.touch #tb{position:fixed!important;left:0!important;right:0!important;
  bottom:0!important;top:auto!important;border-radius:14px 14px 0 0;
  justify-content:center;padding:.55rem .6rem
  calc(.55rem + env(safe-area-inset-bottom));gap:.4rem;
- box-shadow:0 -4px 20px #0003}
+ box-shadow:0 -4px 20px var(--shadow2)}
 body.touch #tb button{padding:.72rem .95rem;font-size:1rem}
 body.touch #tb kbd{display:none}
 body.touch #tb .anc{font-size:.8rem;padding-right:.5rem}
@@ -1113,11 +1157,11 @@ body.touch #tb .trg{display:none}
 body.touch #acc{bottom:calc(4.6rem + env(safe-area-inset-bottom))}
 body.touch #ok{bottom:calc(5.4rem + env(safe-area-inset-bottom))}
 body.touch .rawsel{display:none}
-body.touch span.s.pick{background:#cfe0ff;box-shadow:inset 0 -2px 0 #7ba7e8}
+body.touch span.s.pick{background:var(--pick);box-shadow:inset 0 -2px 0 var(--pickline)}
 
 /* --- панель поиска (режим чтения с бумаги) --- */
-#bar{position:fixed;top:0;left:0;right:0;z-index:40;background:#fffffff2;
- backdrop-filter:blur(6px);border-bottom:1px solid #e5e5e5;padding:.5rem 1rem;
+#bar{position:fixed;top:0;left:0;right:0;z-index:40;background:var(--barbg);
+ backdrop-filter:blur(6px);border-bottom:1px solid var(--line);padding:.5rem 1rem;
  font-family:system-ui,sans-serif}
 #bar .in{max-width:44em;margin:0 auto;display:flex;gap:.6rem;align-items:center}
 #home{color:var(--acc);text-decoration:none;font-size:.85rem;white-space:nowrap;
@@ -1127,80 +1171,83 @@ body.touch span.s.pick{background:#cfe0ff;box-shadow:inset 0 -2px 0 #7ba7e8}
    равна ширине содержимого, поэтому длинный placeholder распирал строку и
    выдавливал поле метки за край вместо того, чтобы дать поиску сжаться. */
 #q{flex:1 1 8rem;min-width:0;font:.92rem system-ui,sans-serif;
- padding:.42rem .7rem;border:1px solid #ccc;border-radius:6px;outline:none}
+ padding:.42rem .7rem;border:1px solid var(--line2);border-radius:6px;
+ outline:none;background:var(--panel);color:var(--fg)}
+#q::placeholder{color:var(--dim)}
 #q:focus{border-color:var(--acc)}
 #cnt{font-size:.78rem;color:var(--dim);white-space:nowrap}
 #res{max-width:40em;margin:.4rem auto 0;max-height:46vh;overflow:auto}
 #res div{padding:.45rem .6rem;border-radius:6px;cursor:pointer;
  font:.86rem/1.45 system-ui,sans-serif}
-#res div:hover,#res div.on{background:#f2ede3}
+#res div:hover,#res div.on{background:var(--hover)}
 #res b{font:.72rem ui-monospace,monospace;color:var(--acc);margin-right:.5em}
 #res i{font-style:normal;background:var(--hi)}
-#miss{padding:.5rem .6rem;font:.86rem system-ui,sans-serif;color:#a33}
+#miss{padding:.5rem .6rem;font:.86rem system-ui,sans-serif;color:var(--danger)}
 
 /* --- всплывающая кнопка при выделении --- */
 #tb{position:absolute;z-index:50;display:none;gap:.28rem;padding:.3rem;
- background:#1a1a1a;border-radius:9px;box-shadow:0 4px 16px #0004}
+ background:var(--tb);border-radius:9px;box-shadow:0 4px 16px var(--shadow2)}
 #tb.on{display:flex}
-#tb button{font:.85rem/1 system-ui,sans-serif;color:#fff;background:#ffffff1a;
+#tb button{font:.85rem/1 system-ui,sans-serif;color:var(--tbfg);background:#ffffff1a;
  border:0;border-radius:6px;padding:.42rem .6rem;cursor:pointer;
  display:flex;align-items:center;gap:.35rem;white-space:nowrap}
 #tb button:hover{background:#ffffff33}
 #tb button kbd{font:.62rem ui-monospace,monospace;opacity:.55}
-#tb .anc{color:#ffd479;font:.72rem ui-monospace,monospace;padding:.42rem .3rem
+#tb .anc{color:var(--tbacc);font:.72rem ui-monospace,monospace;padding:.42rem .3rem
  .42rem .5rem;align-self:center}
-#tb .trg{color:#bbb;font-size:.78rem;max-width:11em;overflow:hidden;
+#tb .trg{color:var(--dim);font-size:.78rem;max-width:11em;overflow:hidden;
  text-overflow:ellipsis}
 #tb .add{background:#ffffff26}
-#tb .add.has{background:#ffd47933;color:#ffd479}
+#tb .add.has{background:#ffd47933;color:var(--tbacc)}
 #tagbox{position:relative;display:flex;align-items:center}
 #tag{font:.85rem system-ui,sans-serif;width:9.5em;padding:.4rem 1.5rem .4rem .6rem;
- border:1px solid #ccc;border-radius:6px;outline:none;background:#fff}
+ border:1px solid var(--line2);border-radius:6px;outline:none;
+ background:var(--panel);color:var(--fg)}
 #tag:focus{border-color:var(--acc)}
-#tag::placeholder{color:#aaa}
+#tag::placeholder{color:var(--dim)}
 #tagx{position:absolute;right:.35rem;border:0;background:0;cursor:pointer;
- color:#aaa;font-size:1rem;line-height:1;padding:.1rem .2rem;display:none}
-#tagx:hover{color:#333}
+ color:var(--dim);font-size:1rem;line-height:1;padding:.1rem .2rem;display:none}
+#tagx:hover{color:var(--fg)}
 #tagbox.filled #tagx{display:block}
 #tagmenu{position:absolute;top:calc(100% + .3rem);right:0;min-width:12rem;
- max-height:15rem;overflow:auto;background:#fff;border:1px solid #ddd;
- border-radius:8px;box-shadow:0 6px 20px #0002;z-index:50;display:none;
+ max-height:15rem;overflow:auto;background:var(--panel);border:1px solid var(--line2);
+ border-radius:8px;box-shadow:0 6px 20px var(--shadow);z-index:50;display:none;
  padding:.25rem;font:.85rem system-ui,sans-serif}
 #tagmenu.on{display:block}
 #tagmenu .row{display:flex;align-items:center;gap:.4rem;padding:.34rem .5rem;
  border-radius:5px;cursor:pointer}
-#tagmenu .row:hover{background:#f2ede3}
+#tagmenu .row:hover{background:var(--hover)}
 #tagmenu .row span{flex:1;overflow:hidden;text-overflow:ellipsis;
  white-space:nowrap}
-#tagmenu .row b{color:#bbb;font-weight:400;padding:0 .25rem}
-#tagmenu .row b:hover{color:#c33}
-#tagmenu .all{border-top:1px solid #eee;margin-top:.25rem;padding:.4rem .5rem;
- color:#c33;cursor:pointer;font-size:.8rem;border-radius:5px}
-#tagmenu .all:hover{background:#fdeeee}
-#tagmenu .none{padding:.4rem .5rem;color:#999;font-size:.8rem}
+#tagmenu .row b{color:var(--dim);font-weight:400;padding:0 .25rem}
+#tagmenu .row b:hover{color:var(--danger)}
+#tagmenu .all{border-top:1px solid var(--line);margin-top:.25rem;padding:.4rem .5rem;
+ color:var(--danger);cursor:pointer;font-size:.8rem;border-radius:5px}
+#tagmenu .all:hover{background:var(--hover)}
+#tagmenu .none{padding:.4rem .5rem;color:var(--dim);font-size:.8rem}
 
 /* --- накопитель цитат --- */
 #acc{position:fixed;left:50%;bottom:1.1rem;transform:translateX(-50%);z-index:45;
  display:none;align-items:center;gap:.45rem;max-width:min(94vw,50rem);
- padding:.45rem .55rem;background:#1a1a1a;border-radius:11px;
- box-shadow:0 6px 22px #0005;font:.84rem system-ui,sans-serif;color:#fff}
+ padding:.45rem .55rem;background:var(--tb);border-radius:11px;
+ box-shadow:0 6px 22px var(--shadow2);font:.84rem system-ui,sans-serif;color:#fff}
 #acc.on{display:flex}
 #acc .list{display:flex;gap:.3rem;overflow-x:auto;max-width:26rem;padding:.1rem}
 #acc .chip{display:flex;align-items:center;gap:.3rem;white-space:nowrap;
  background:#ffffff1a;border-radius:6px;padding:.28rem .3rem .28rem .5rem;
- font:.74rem ui-monospace,monospace;color:#ffd479}
+ font:.74rem ui-monospace,monospace;color:var(--tbacc)}
 #acc .chip b{cursor:pointer;color:#ffffff8c;font-weight:400;padding:0 .25rem}
-#acc .chip b:hover{color:#fff}
-#acc button{font:.83rem system-ui,sans-serif;color:#fff;background:#ffffff1a;
+#acc .chip b:hover{color:var(--tbfg)}
+#acc button{font:.83rem system-ui,sans-serif;color:var(--tbfg);background:#ffffff1a;
  border:0;border-radius:6px;padding:.36rem .58rem;cursor:pointer}
 #acc button:hover{background:#ffffff33}
 #acc .clr{color:#ffffff8c;font-size:.78rem}
 
-#hash{display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:#666;
+#hash{display:flex;align-items:center;gap:.3rem;font-size:.78rem;color:var(--soft);
  cursor:pointer;user-select:none;white-space:nowrap}
 #hash input{accent-color:var(--acc)}
 #ok{position:fixed;left:50%;bottom:5.2rem;transform:translateX(-50%);z-index:60;
- background:#1a1a1a;color:#fff;padding:.55rem 1rem;border-radius:8px;
+ background:var(--tb);color:var(--tbfg);padding:.55rem 1rem;border-radius:8px;
  font:.85rem system-ui,sans-serif;opacity:0;transition:opacity .18s;
  pointer-events:none}
 #ok.on{opacity:.94}
@@ -1664,6 +1711,27 @@ addEventListener('keydown', function(e){
   }
 });
 
+/* ---------- тема ----------
+   Начальное значение выставляется отдельным скриптом в шапке, до первой
+   отрисовки: иначе тёмная страница мигает белым при каждой загрузке.
+   Здесь только переключение. */
+var THEMES = ['light', 'sepia', 'dark'];
+var THEME_NAME = {light: 'Светлая', sepia: 'Бежевая', dark: 'Тёмная'};
+
+var themeBtn = document.getElementById('themebtn');
+function themeShow(){
+  var t = document.documentElement.dataset.theme || 'light';
+  if(themeBtn) themeBtn.title = THEME_NAME[t] + ' тема — нажмите, чтобы сменить';
+}
+themeBtn && themeBtn.addEventListener('click', function(){
+  var t = document.documentElement.dataset.theme || 'light';
+  var now = THEMES[(THEMES.indexOf(t) + 1) % THEMES.length];
+  document.documentElement.dataset.theme = now;
+  try { localStorage.setItem('br.theme', now); } catch(e){}
+  themeShow();
+});
+themeShow();
+
 /* ---------- оглавление ---------- */
 var toc = document.getElementById('toc'),
     tocBtn = document.getElementById('tocbtn'),
@@ -2067,11 +2135,18 @@ def write_html(reg, out):
 
     L = ['<!doctype html><html lang="ru"><meta charset="utf-8">',
          '<meta name="viewport" content="width=device-width,initial-scale=1">',
-         f'<title>{e(reg["book"]["title"])}</title>', f"<style>{CSS}</style>",
+         f'<title>{e(reg["book"]["title"])}</title>',
+         '<script>(function(){try{var t=localStorage.getItem("br.theme");'
+         'if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches'
+         '?"dark":"light";document.documentElement.dataset.theme=t;'
+         '}catch(e){}})();</script>',
+         f"<style>{CSS}</style>",
          '<div id="bar"><div class="in">'
          '<button id="tocbtn" title="Оглавление" aria-label="Оглавление">'
          '<i></i><i></i><i></i></button>'
          '<a id="home" href="../index.html" title="Список книг">&larr; Книги</a>'
+         '<button id="themebtn" title="Светлая или тёмная тема" '
+         'aria-label="Тема"><i></i></button>'
          '<input id="q" placeholder="Найти цитату или номер — 1.14.2 …" '
          'autocomplete="off"><span id="cnt"></span>'
          '<label id="hash" title="Добавлять метку в заметку">'
@@ -2209,26 +2284,47 @@ def write_html(reg, out):
 # ===========================================================================
 
 INDEX_CSS = """
-:root{--fg:#1a1a1a;--dim:#8a8a8a;--acc:#b06000;--line:#e6e2da}
-body{max-width:44rem;margin:0 auto;padding:4rem 1.5rem 6rem;background:#fffdfa;
+:root{--fg:#1a1a1a;--dim:#8a8a8a;--acc:#b06000;--line:#e6e2da;--bg:#fffdfa;
+ --card:#fff;--soft:#666;--ok:#2a7f3e;--shadow:#0002;
+ --sel:#bcd8fb;--selfg:#111}
+html[data-theme="sepia"]{--fg:#43392e;--dim:#a3937c;--acc:#9a5b1e;
+ --line:#ddd0b8;--bg:#f5eddc;--card:#fbf6ea;--soft:#6b5d4d;--ok:#3f7a4a;
+ --shadow:#0002;--sel:#e2d3a8;--selfg:#2e261d}
+html[data-theme="dark"]{--fg:#ddd8d0;--dim:#6f6a63;--acc:#e8a25c;
+ --line:#33312e;--bg:#1b1a18;--card:#242220;--soft:#a8a29a;--ok:#6fbf84;
+ --shadow:#0007;--sel:#44618c;--selfg:#fff}
+html{background:var(--bg)}
+::selection{background:var(--sel);color:var(--selfg)}
+body{max-width:44rem;margin:0 auto;padding:4rem 1.5rem 6rem;background:var(--bg);
  color:var(--fg);font:16px/1.6 -apple-system,BlinkMacSystemFont,'Segoe UI',
  Roboto,sans-serif}
 h1{font-size:1.6rem;margin:0 0 .4rem}
-.sub{color:#666;margin:0 0 2.5rem}
+.sub{color:var(--soft);margin:0 0 2.5rem}
 a.bk{display:block;text-decoration:none;color:inherit;padding:1rem 1.1rem;
  margin:0 0 .7rem;border:1px solid var(--line);border-radius:10px;
- background:#fff;transition:border-color .15s}
+ background:var(--card);transition:border-color .15s}
 a.bk:hover{border-color:var(--acc)}
 a.bk .t{font-size:1.08rem;font-weight:600;margin-bottom:.15rem}
-a.bk .a{color:#666;font-size:.9rem}
+a.bk .a{color:var(--soft);font-size:.9rem}
 a.bk .n{color:var(--dim);font-size:.8rem;margin-top:.45rem;
  font-family:ui-monospace,monospace}
-.lock{color:#2a7f3e}.nolock{color:#b06000}
+.lock{color:var(--ok)}.nolock{color:#b06000}
 footer{margin-top:2.5rem;padding-top:1.2rem;border-top:1px solid var(--line);
- font-size:.88rem;color:#666}
+ font-size:.88rem;color:var(--soft)}
 footer a{color:var(--acc);text-decoration:none}
 footer a:hover{text-decoration:underline}
 footer .sep{color:var(--dim);margin:0 .6rem}
+#themebtn{position:fixed;top:1rem;right:1rem;width:2.5rem;height:2.5rem;
+ border:1px solid var(--line);border-radius:9px;background:var(--bg);
+ cursor:pointer;color:var(--soft);padding:0;
+ display:inline-flex;align-items:center;justify-content:center}
+#themebtn i{width:.95rem;height:.95rem;border-radius:50%;display:block;
+ border:1.5px solid currentColor;box-sizing:border-box;
+ background:linear-gradient(90deg,currentColor 50%,transparent 50%)}
+html[data-theme="sepia"] #themebtn i{
+ background:linear-gradient(90deg,currentColor 78%,transparent 78%)}
+html[data-theme="dark"] #themebtn i{background:currentColor}
+#themebtn:hover{color:var(--acc)}
 """
 
 
@@ -2251,10 +2347,27 @@ def write_index(regs, out):
     Path(out).write_text(
         '<!doctype html><html lang="ru"><meta charset="utf-8">'
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
-        '<title>Книги</title><style>' + INDEX_CSS + '</style>'
+        '<title>Книги</title>'
+        '<script>(function(){try{var t=localStorage.getItem("br.theme");'
+        'if(!t)t=matchMedia("(prefers-color-scheme: dark)").matches'
+        '?"dark":"light";document.documentElement.dataset.theme=t;'
+        '}catch(e){}})();</script>'
+        '<style>' + INDEX_CSS + '</style>'
+        '<button id="themebtn" title="Тема"><i></i></button>'
         '<h1>Книги</h1><p class="sub">Выделите текст — появится панель '
         'с кнопками К, ? и М. Или найдите цитату по словам или номеру.</p>'
         + "".join(cards)
+        + '<script>(function(){var T=["light","sepia","dark"],'
+          'N={light:"Светлая",sepia:"Бежевая",dark:"Тёмная"},'
+          
+          'b=document.getElementById("themebtn");'
+          'function s(){var t=document.documentElement.dataset.theme||"light";'
+          'b.title=N[t]+" тема — нажмите, чтобы сменить";}'
+          'b.onclick=function(){var t=document.documentElement.dataset.theme'
+          '||"light";var n=T[(T.indexOf(t)+1)%T.length];'
+          'document.documentElement.dataset.theme=n;'
+          'try{localStorage.setItem("br.theme",n);}catch(e){}s();};s();})();'
+          '</script>'
         + '<footer><a href="reader.html">Как делать заметки</a>'
           '<span class="sep">·</span>'
           '<a href="docs.html">Документация для сопровождающего</a></footer>',
