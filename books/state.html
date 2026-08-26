@@ -1349,19 +1349,27 @@ function toast(t){ ok.textContent = t; ok.classList.add('on');
 /* Якоря для вставки: сначала накопленные, потом текущее выделение.
    Один путь на оба случая, чтобы поведение не зависело от того, откуда
    нажали — из панели над текстом или из полоски накопителя. */
-function anchors(){
+/* Ссылка подсвечивает то, что заметка цитирует. Нет цитаты — ведёт к месту.
+   Цитата есть только у «М», поэтому смещения пишутся:
+     — всегда, если куски отмечены через «…+» (их для того и отмечали);
+     — при обычной протяжке — только для «М».
+   Для «К» и «?» протяжка означает «вот это место»: иначе, чтобы сослаться
+   на предложение целиком, пришлось бы тянуть выделение до последней точки.
+   Если кусок покрывает весь охват, offsetsFor вернёт пусто сам. */
+function anchors(type){
   var out = bag.slice();
-  var fr = allFrags();
-  if(fr.length){
-    /* цитата, собранная из кусков: охват — по самим кускам, а не по тому,
-       что сейчас выделено */
+  var withOffsets = kept.length > 0 || type === 'М';
+  if(withOffsets && (kept.length || frags.length)){
+    var fr = allFrags();
     var sp = spanOf(fr);
     if(sp.length){
       var a = anchorFor(sp);
       if(!out.some(function(x){ return x.a === a; }))
         out.push({a: a, f: offsetsFor(sp, fr)});
+      return out;
     }
-  } else if(cur.length){
+  }
+  if(cur.length){
     var one = anchorFor(cur);
     if(!out.some(function(x){ return x.a === one; }))
       out.push({a: one, f: ''});
@@ -1404,29 +1412,8 @@ function spanOf(fr){
     ? SENT.slice(Math.min.apply(null, idx), Math.max.apply(null, idx) + 1) : [];
 }
 
-function fragParam(){
-  var fr = allFrags();
-  if(fr.length < 1 || !cur.length) return '';
-  var out = [];
-  for(var i = 0; i < fr.length; i++){
-    var a = offsetIn(cur, fr[i].startContainer, fr[i].startOffset);
-    var b = offsetIn(cur, fr[i].endContainer, fr[i].endOffset);
-    if(a >= 0 && b > a) out.push(a + '-' + b);
-  }
-  /* весь якорь целиком — подсвечивать нечего */
-  if(out.length === 1){
-    var p = out[0].split('-');
-    var total = cur.map(function(e){
-      return textNodes(e).map(function(n){ return n.nodeValue.length; })
-             .reduce(function(x, y){ return x + y; }, 0);
-    }).reduce(function(x, y){ return x + y + 1; }, -1);
-    if(+p[0] === 0 && +p[1] >= total) return '';
-  }
-  return out.length ? '?f=' + out.join(',') : '';
-}
-
 function emit(type){
-  var list = anchors();
+  var list = anchors(type);
   if(!list.length) return;
   /* по порядку в книге, а не по порядку добавления: читают заметку
      сверху вниз, и ссылки должны идти так же */
@@ -1614,21 +1601,29 @@ function addToBag(){
 acc.addEventListener('mousedown', function(e){ e.preventDefault(); });
 acc.addEventListener('click', function(e){
   var rm = e.target.closest('[data-rm]');
-  if(rm){ bag.splice(+rm.dataset.rm, 1); save(KACC, bag); peek([]); drawAcc(); return; }
+  if(rm){
+    bag.splice(+rm.dataset.rm, 1); save(KACC, bag);
+    peek([]); clearPeekRaw(); drawAcc();
+    return;
+  }
   if(e.target.closest('[data-clear]')){
-    bag = []; save(KACC, bag); peek([]); drawAcc(); return;
+    bag = []; save(KACC, bag); peek([]); clearPeekRaw(); drawAcc();
+    return;
   }
   var rf = e.target.closest('[data-rmf]');
   if(rf){
     kept.splice(+rf.dataset.rmf, 1);
     peek([]); clearPeekRaw(); drawAcc();
-    if(cur.length) setCur(cur, null, true);
+    /* Перерисовать надо всегда, а не только при живом выделении: после
+       «…+» его нет, и накладки убранных кусков оставались висеть до
+       следующего выделения. */
+    if(cur.length) setCur(cur, null, true); else drawRaw(kept, []);
     return;
   }
   if(e.target.closest('[data-clearf]')){
     kept = []; frags = [];
-    peek([]); drawAcc();
-    if(cur.length) setCur(cur, null, true);
+    peek([]); clearPeekRaw(); drawAcc();
+    if(cur.length) setCur(cur, null, true); else drawRaw(null);
     return;
   }
   var chip = e.target.closest('[data-anc]');
