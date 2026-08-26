@@ -1553,7 +1553,10 @@ function addToBag(){
       (inside ? here : rest).push(r);
     });
     kept = rest;
-    bag.push({a: a, f: offsetsFor(cur, sortFrags(here.concat(frags)))});
+    /* Текущая протяжка в смещения не идёт: «+» откладывает цитату целиком,
+       а выделением человек лишь указывает, какую. Слова отмечаются только
+       осознанно — через «…+». */
+    bag.push({a: a, f: offsetsFor(cur, here)});
     save(KACC, bag);
   }
   drawAcc();
