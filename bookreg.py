@@ -1371,7 +1371,18 @@ function applyHash(){
       var r = rangeAt(sel, +ab[0], +ab[1]);
       if(r) rs.push(r);
     });
-    if(rs.length) drawRaw(rs);
+    if(rs.length){
+      drawRaw(rs);
+      /* и ещё раз, когда картинки и шрифты доедут: положение уточнится,
+         а заодно вернётся правильная прокрутка */
+      var again = function(){
+        redrawRaw();
+        if(sel.length) sel[0].scrollIntoView({block: 'center'});
+      };
+      addEventListener('load', again, {once: true});
+      if(document.fonts && document.fonts.ready)
+        document.fonts.ready.then(function(){ setTimeout(again, 0); });
+    }
   }
 }
 applyHash();
@@ -1584,7 +1595,10 @@ function fragText(r){
    range.getClientRects(), а не оборачиванием в тег: DOM не трогается,
    значит не ломается ни разметка курсива, ни разбиение на предложения.
    Координаты документные, поэтому накладка едет вместе с текстом. */
+var lastDraw = null;   /* чем рисовали — чтобы перерисовать при сдвиге вёрстки */
+
 function drawRaw(ranges, live){
+  lastDraw = ranges && ranges.length ? {r: ranges.slice(), l: live} : null;
   clearRaw();
   if(!ranges) return;
   if(!ranges.length && ranges.getClientRects) ranges = [ranges];
@@ -1613,9 +1627,25 @@ function drawRaw(ranges, live){
   }
 }
 function clearRaw(){
-  var old = document.querySelectorAll('.rawsel');
+  var old = document.querySelectorAll('.rawsel:not(.peekraw)');
   for(var i = 0; i < old.length; i++) old[i].remove();
 }
+
+/* Накладки стоят в координатах документа. Если выше по странице что-то
+   изменит высоту — догрузилась картинка, подменился шрифт, повернули
+   экран — текст уедет, а накладки останутся висеть на прежнем месте.
+   Поэтому пересчитываем их на каждое такое событие. */
+function redrawRaw(){
+  if(lastDraw) drawRaw(lastDraw.r, lastDraw.l);
+}
+addEventListener('resize', redrawRaw);
+addEventListener('load', redrawRaw);
+addEventListener('orientationchange', function(){ setTimeout(redrawRaw, 150); });
+document.addEventListener('load', function(e){
+  if(e.target && e.target.tagName === 'IMG') redrawRaw();
+}, true);
+if(document.fonts && document.fonts.ready)
+  document.fonts.ready.then(function(){ setTimeout(redrawRaw, 0); });
 
 /* Снять текущее выделение. Закреплённые куски остаются: это уже сделанная
    работа, ровно как собранное в накопителе, и терять её по клику мимо
@@ -2192,7 +2222,11 @@ addEventListener('keydown', function(e){
   if(ADD[e.key] && cur.length){ e.preventDefault(); addToBag(); return; }
   if(JOIN[e.key] && frags.length){ e.preventDefault(); joinFrags(); return; }
   var t = KEY[e.key.toLowerCase()];
-  if(t && (cur.length || bag.length)){ e.preventDefault(); emit(t); }
+  /* kept тоже считается: после закрепления последнего куска выделения нет,
+     но цитата есть — и кнопки внизу работают, а клавиши не работали */
+  if(t && (cur.length || bag.length || kept.length)){
+    e.preventDefault(); emit(t);
+  }
   if(e.key === 'Escape'){
     if(cur.length || kept.length){ getSelection().removeAllRanges(); reset(); }
     else if(bag.length){ bag = []; save(KACC, bag); drawAcc(); }
@@ -2528,6 +2562,38 @@ addEventListener('keydown', function(e){
 refreshTags(); tagState(); applyHash_(); fitPlaceholder();
 })();
 """
+def img_size(b):
+    """
+    Ширина и высота картинки из её же заголовка. Нужны в разметке: без них
+    браузер не знает места под картинку, при догрузке текст сдвигается вниз,
+    и накладки выделений остаются висеть выше него.
+    """
+    import struct
+    try:
+        if b[:8] == b"\x89PNG\r\n\x1a\n":
+            return struct.unpack(">II", b[16:24])
+        if b[:2] == b"\xff\xd8":
+            i, n = 2, len(b)
+            while i < n - 9:
+                if b[i] != 0xFF:
+                    i += 1
+                    continue
+                m = b[i + 1]
+                if m in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
+                         0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+                    h, w = struct.unpack(">HH", b[i + 5:i + 9])
+                    return (w, h)
+                if m in (0xD8, 0xD9) or 0xD0 <= m <= 0xD7:
+                    i += 2
+                    continue
+                i += 2 + struct.unpack(">H", b[i + 2:i + 4])[0]
+        if b[:6] in (b"GIF87a", b"GIF89a"):
+            return struct.unpack("<HH", b[6:10])
+    except Exception:
+        pass
+    return None
+
+
 def write_images(reg, out):
     """
     Картинки кладутся отдельными файлами рядом с читалкой, а не встраиваются
@@ -2553,11 +2619,18 @@ def write_images(reg, out):
         if not name.lower().endswith(ext):
             name = Path(name).stem + ext
         try:
-            (d / name).write_bytes(base64.b64decode(data))
+            raw = base64.b64decode(data)
+            (d / name).write_bytes(raw)
         except Exception:
             continue
-        written[href] = d.name + "/" + name
+        written[href] = (d.name + "/" + name, img_size(raw))
     return written
+
+
+def img_tag(item):
+    src, size = item
+    wh = f' width="{size[0]}" height="{size[1]}"' if size else ""
+    return f'<img src="{src}" alt=""{wh} loading="lazy">'
 
 
 def write_html(reg, out):
@@ -2688,8 +2761,7 @@ def write_html(reg, out):
                 L.append(f'<h4 id="{mid}" class="mark">{e(mk["text"])}</h4>')
         for href in pics.get((c, p["n"] - 1), []):
             if href in imgs:
-                L.append(f'<figure><img src="{imgs[href]}" alt="" '
-                         f'loading="lazy"></figure>')
+                L.append("<figure>" + img_tag(imgs[href]) + "</figure>")
         for rows in tabs.get((c, p["n"] - 1), []):
             L.append("<table>" + "".join(
                 "<tr>" + "".join(f"<{k}>{e(v)}</{k}>" for k, v in row)
@@ -2727,8 +2799,7 @@ def write_html(reg, out):
             continue
         for href in hrefs:
             if href in imgs:
-                L.append(f'<figure><img src="{imgs[href]}" alt="" '
-                         f'loading="lazy"></figure>')
+                L.append("<figure>" + img_tag(imgs[href]) + "</figure>")
 
     if used:
         L.append('<h2 id="notes">Примечания</h2><ol class="notes">')

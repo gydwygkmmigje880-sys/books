@@ -907,7 +907,18 @@ function applyHash(){
       var r = rangeAt(sel, +ab[0], +ab[1]);
       if(r) rs.push(r);
     });
-    if(rs.length) drawRaw(rs);
+    if(rs.length){
+      drawRaw(rs);
+      /* и ещё раз, когда картинки и шрифты доедут: положение уточнится,
+         а заодно вернётся правильная прокрутка */
+      var again = function(){
+        redrawRaw();
+        if(sel.length) sel[0].scrollIntoView({block: 'center'});
+      };
+      addEventListener('load', again, {once: true});
+      if(document.fonts && document.fonts.ready)
+        document.fonts.ready.then(function(){ setTimeout(again, 0); });
+    }
   }
 }
 applyHash();
@@ -1120,7 +1131,10 @@ function fragText(r){
    range.getClientRects(), а не оборачиванием в тег: DOM не трогается,
    значит не ломается ни разметка курсива, ни разбиение на предложения.
    Координаты документные, поэтому накладка едет вместе с текстом. */
+var lastDraw = null;   /* чем рисовали — чтобы перерисовать при сдвиге вёрстки */
+
 function drawRaw(ranges, live){
+  lastDraw = ranges && ranges.length ? {r: ranges.slice(), l: live} : null;
   clearRaw();
   if(!ranges) return;
   if(!ranges.length && ranges.getClientRects) ranges = [ranges];
@@ -1149,9 +1163,25 @@ function drawRaw(ranges, live){
   }
 }
 function clearRaw(){
-  var old = document.querySelectorAll('.rawsel');
+  var old = document.querySelectorAll('.rawsel:not(.peekraw)');
   for(var i = 0; i < old.length; i++) old[i].remove();
 }
+
+/* Накладки стоят в координатах документа. Если выше по странице что-то
+   изменит высоту — догрузилась картинка, подменился шрифт, повернули
+   экран — текст уедет, а накладки останутся висеть на прежнем месте.
+   Поэтому пересчитываем их на каждое такое событие. */
+function redrawRaw(){
+  if(lastDraw) drawRaw(lastDraw.r, lastDraw.l);
+}
+addEventListener('resize', redrawRaw);
+addEventListener('load', redrawRaw);
+addEventListener('orientationchange', function(){ setTimeout(redrawRaw, 150); });
+document.addEventListener('load', function(e){
+  if(e.target && e.target.tagName === 'IMG') redrawRaw();
+}, true);
+if(document.fonts && document.fonts.ready)
+  document.fonts.ready.then(function(){ setTimeout(redrawRaw, 0); });
 
 /* Снять текущее выделение. Закреплённые куски остаются: это уже сделанная
    работа, ровно как собранное в накопителе, и терять её по клику мимо
@@ -1728,7 +1758,11 @@ addEventListener('keydown', function(e){
   if(ADD[e.key] && cur.length){ e.preventDefault(); addToBag(); return; }
   if(JOIN[e.key] && frags.length){ e.preventDefault(); joinFrags(); return; }
   var t = KEY[e.key.toLowerCase()];
-  if(t && (cur.length || bag.length)){ e.preventDefault(); emit(t); }
+  /* kept тоже считается: после закрепления последнего куска выделения нет,
+     но цитата есть — и кнопки внизу работают, а клавиши не работали */
+  if(t && (cur.length || bag.length || kept.length)){
+    e.preventDefault(); emit(t);
+  }
   if(e.key === 'Escape'){
     if(cur.length || kept.length){ getSelection().removeAllRanges(); reset(); }
     else if(bag.length){ bag = []; save(KACC, bag); drawAcc(); }
