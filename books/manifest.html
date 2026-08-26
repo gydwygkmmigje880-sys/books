@@ -875,6 +875,37 @@ function fragText(r){
    Координаты документные, поэтому накладка едет вместе с текстом. */
 var lastDraw = null;   /* чем рисовали — чтобы перерисовать при сдвиге вёрстки */
 
+/* Браузер отдаёт по прямоугольнику на каждый вложенный элемент: курсив,
+   полужирный, ссылка сноски — свой. На стыках они перекрываются, и
+   полупрозрачные накладки складываются, отчего курсив выглядит темнее.
+   Склеиваем всё, что лежит на одной строке и соприкасается. */
+function mergeRects(rs){
+  var out = [];
+  rs.sort(function(a, b){ return (a.top - b.top) || (a.left - b.left); });
+  for(var i = 0; i < rs.length; i++){
+    var r = rs[i], done = false;
+    for(var j = 0; j < out.length; j++){
+      var o = out[j];
+      var sameLine = Math.abs((o.top + o.bottom) / 2 - (r.top + r.bottom) / 2) < 4;
+      if(o.soft === r.soft && sameLine
+         && r.left <= o.right + 1.5 && r.right >= o.left - 1.5){
+        o.left = Math.min(o.left, r.left);
+        o.right = Math.max(o.right, r.right);
+        o.top = Math.min(o.top, r.top);
+        o.bottom = Math.max(o.bottom, r.bottom);
+        o.width = o.right - o.left;
+        o.height = o.bottom - o.top;
+        done = true;
+        break;
+      }
+    }
+    if(!done) out.push({left: r.left, top: r.top, right: r.right,
+                        bottom: r.bottom, width: r.width, height: r.height,
+                        soft: r.soft});
+  }
+  return out;
+}
+
 function drawRaw(ranges, live){
   lastDraw = ranges && ranges.length ? {r: ranges.slice(), l: live} : null;
   clearRaw();
@@ -886,8 +917,13 @@ function drawRaw(ranges, live){
        собрано, и что выделено прямо сейчас */
     var soft = live && live.indexOf(ranges[k]) < 0;
     var rr = ranges[k].getClientRects();
-    for(var m = 0; m < rr.length; m++){ rr[m].__soft = soft; rects.push(rr[m]); }
+    for(var m = 0; m < rr.length; m++){
+      rects.push({left: rr[m].left, top: rr[m].top, right: rr[m].right,
+                  bottom: rr[m].bottom, width: rr[m].width,
+                  height: rr[m].height, soft: soft});
+    }
   }
+  rects = mergeRects(rects);
   /* Огромное выделение (пол-книги) давало тысячи прямоугольников и вешало
      страницу. Столько накладок всё равно бессмысленно: это уже не кусок
      цитаты, а сплошной кусок текста. */
@@ -896,7 +932,7 @@ function drawRaw(ranges, live){
     var r = rects[i];
     if(r.width < 1 || r.height < 1) continue;
     var d = document.createElement('div');
-    d.className = r.__soft ? 'rawsel soft' : 'rawsel';
+    d.className = r.soft ? 'rawsel soft' : 'rawsel';
     d.style.left = (r.left + scrollX) + 'px';
     d.style.top = (r.top + scrollY) + 'px';
     d.style.width = r.width + 'px';
@@ -1249,7 +1285,12 @@ function peek(list){
 function peekRange(r){
   clearPeekRaw();
   if(!r) return;
-  var rects = r.getClientRects();
+  var raw = r.getClientRects(), tmp = [];
+  for(var k = 0; k < raw.length; k++)
+    tmp.push({left: raw[k].left, top: raw[k].top, right: raw[k].right,
+              bottom: raw[k].bottom, width: raw[k].width,
+              height: raw[k].height, soft: false});
+  var rects = mergeRects(tmp);
   if(rects.length > 300) return;
   for(var i = 0; i < rects.length; i++){
     var q = rects[i];
