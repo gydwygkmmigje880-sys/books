@@ -9,7 +9,8 @@
  --raw:rgba(86,150,255,.48);--rawmix:multiply;--danger:#c33;
  --barbg:#fffffff2;--tocbg:#fffdfaf7;--tb:#1a1a1a;--tbfg:#fff;--tbacc:#ffd479;
  --shadow:#0002;--shadow2:#0004;--veil:#0005;--imgfilter:none;
- --sel:#bcd8fb;--selfg:#111;--peek:rgba(255,214,74,.55)}
+ --sel:#bcd8fb;--selfg:#111;--peek:rgba(255,214,74,.55);
+ --saved:rgba(255,226,120,.62)}
 *{box-sizing:border-box}
 html[data-theme="sepia"]{
  --bg:#f5eddc;--fg:#43392e;--soft:#6b5d4d;--soft2:#7d6f5e;--dim:#a3937c;
@@ -19,7 +20,7 @@ html[data-theme="sepia"]{
  --barbg:#f5eddcf2;--tocbg:#f5eddcf7;--tb:#3a3229;--tbfg:#f7f1e4;
  --tbacc:#ffd479;--shadow:#0002;--shadow2:#0003;--veil:#0005;
  --imgfilter:sepia(.12);--sel:#c3d4ea;--selfg:#1e2a38;
- --peek:rgba(240,190,60,.45)}
+ --peek:rgba(240,190,60,.45);--saved:rgba(232,196,96,.55)}
 html[data-theme="dark"]{
  --bg:#1b1a18;--fg:#ddd8d0;--soft:#a8a29a;--soft2:#8d8880;--dim:#6f6a63;
  --line:#33312e;--line2:#3d3a36;--panel:#242220;--hover:#2b2926;--tint:#232120;
@@ -28,7 +29,8 @@ html[data-theme="dark"]{
  --barbg:#1b1a18f2;--tocbg:#1b1a18f7;--tb:#34312d;--tbfg:#f2eee8;
  --tbacc:#ffd479;--shadow:#0006;--shadow2:#0008;--veil:#0008;
  --imgfilter:brightness(.85) contrast(1.05);
- --sel:#2f5c96;--selfg:#fff;--peek:rgba(226,168,60,.28)}
+ --sel:#2f5c96;--selfg:#fff;--peek:rgba(226,168,60,.28);
+ --saved:rgba(224,170,70,.30)}
 html{background:var(--bg)}
 figure img{filter:var(--imgfilter)}
 /* Системное выделение по умолчанию — яркая синь с белым текстом. Поверх
@@ -125,6 +127,10 @@ span.s.pick.bagged{box-shadow:inset 0 -2px 0 var(--pickline)}
 .rawsel{position:absolute;background:var(--raw);border-radius:2px;
  pointer-events:none;z-index:1;mix-blend-mode:var(--rawmix)}
 .rawsel.soft{opacity:.72}
+.hlmark{position:absolute;background:var(--saved);border-radius:2px;
+ pointer-events:none;z-index:0;mix-blend-mode:var(--rawmix)}
+#tb .mark i{display:inline-block;width:.8rem;height:.8rem;border-radius:3px;
+ background:var(--tbacc);vertical-align:-1px}
 .rawsel.peekraw{background:var(--peek);mix-blend-mode:var(--rawmix);
  box-shadow:0 0 0 1px var(--hinum)}
 sup.nt{font-size:.62em;line-height:0;user-select:none}
@@ -189,6 +195,12 @@ span.s.pick.bagged{box-shadow:inset 0 -2px 0 var(--pickline)}
  outline:none;background:var(--panel);color:var(--fg)}
 #q::placeholder{color:var(--dim)}
 #q:focus{border-color:var(--acc)}
+#qbox{position:relative;display:flex;align-items:center;flex:1 1 8rem;min-width:0}
+#qbox #q{width:100%;padding-right:1.6rem}
+#qx{position:absolute;right:.35rem;border:0;background:0;cursor:pointer;
+ color:var(--dim);font-size:1rem;line-height:1;padding:.1rem .2rem;display:none}
+#qx:hover{color:var(--fg)}
+#qbox.filled #qx{display:block}
 #cnt{font-size:.78rem;color:var(--dim);white-space:nowrap}
 #res{max-width:40em;margin:.4rem auto 0;max-height:46vh;overflow:auto}
 #res div{padding:.45rem .6rem;border-radius:6px;cursor:pointer;
@@ -294,7 +306,7 @@ body.touch #acc kbd{display:none}
 @media print{#bar,#tb,#ok{display:none!important}body{padding-top:1rem}}
 </style>
 <div id="tocveil"></div><nav id="toc"><a href="#top" data-c="top" class="top">Манифест Коммунистической партии</a><a href="#c1" data-c="c1">I. Буржуа и пролетарии</a><a href="#c2" data-c="c2">II. Пролетарии и коммунисты</a><a href="#c3" data-c="c3">III. Социалистическая и коммунистическая литература</a><a href="#c3.1" data-c="c3.1" class="sub">1. Реакционный социализм</a><a href="#m0" data-c="m0" class="sub">а) Феодальный социализм</a><a href="#m1" data-c="m1" class="sub">b) Мелкобуржуазный социализм</a><a href="#m2" data-c="m2" class="sub">с) Немецкий, или «истинный», социализм</a><a href="#c3.2" data-c="c3.2" class="sub">2. Консервативный, или буржуазный, социализм</a><a href="#c3.3" data-c="c3.3" class="sub">3. Критически-утопический социализм и коммунизм</a><a href="#c4" data-c="c4">IV. Отношение коммунистов к различным оппозиционным партиям</a></nav>
-<div id="bar"><div class="in"><button id="tocbtn" title="Оглавление" aria-label="Оглавление"><i></i><i></i><i></i></button><a id="home" href="../index.html" title="Список книг">&larr; Книги</a><button id="themebtn" title="Светлая или тёмная тема" aria-label="Тема"><i></i></button><input id="q" placeholder="Найти цитату или номер — 1.14.2 …" autocomplete="off"><span id="cnt"></span><label id="hash" title="Добавлять метку в заметку"><input type="checkbox" id="hashon">метка</label><span id="tagbox" style="display:none"><input id="tag" placeholder="Без метки" autocomplete="off"><button id="tagx" title="Очистить поле">&times;</button><div id="tagmenu"></div></span></div><div id="res"></div></div>
+<div id="bar"><div class="in"><button id="tocbtn" title="Оглавление" aria-label="Оглавление"><i></i><i></i><i></i></button><a id="home" href="../index.html" title="Список книг">&larr; Книги</a><button id="themebtn" title="Светлая или тёмная тема" aria-label="Тема"><i></i></button><span id="qbox"><input id="q" placeholder="Найти цитату или номер — 1.14.2 …" autocomplete="off"><button id="qx" title="Очистить поиск">&times;</button></span><span id="cnt"></span><label id="hash" title="Добавлять метку в заметку"><input type="checkbox" id="hashon">метка</label><span id="tagbox" style="display:none"><input id="tag" placeholder="Без метки" autocomplete="off"><button id="tagx" title="Очистить поле">&times;</button><div id="tagmenu"></div></span></div><div id="res"></div></div>
 <h1 id="top">Манифест Коммунистической партии</h1>
 <figure><img src="manifest_img/cover.png" alt="" width="255" height="425" loading="lazy"></figure>
 <p id="0.1"><span class="num">0.1</span><span class="s" id="0.1.1"><em>Титульный лист первого издания «Манифеста Коммунистической партии»</em><sup class="nt"><a href="#n_1" title="«Манифест Коммунистической партии» – величайший программный документ научного коммунизма. «Эта небольшая книжечка стоит целых томов: духом ее живет и движется до сих пор весь организованный и борющийся пролетариат цивилизованного мира» (Ленин). Написанный К. Марксом и Ф. Энгельсом в качестве программы Союза коммунистов, «Манифест Коммунистической партии» был впервые опубликован в Лондоне в феврале">1</a></sup></span></p>
@@ -595,9 +607,23 @@ function norm(t){
     .replace(/[^0-9a-zа-я\s-]/g,' ')
     .replace(/\s+/g,' ').trim();
 }
-/* pymorphy в браузере нет; обрезка основы до 5 букв ловит падежи */
-function stem(w){ return w.length > 5 ? w.slice(0,5) : w; }
-function like(a,b){ return b.indexOf(stem(a))===0 || a.indexOf(stem(b))===0; }
+/* Морфологии в браузере нет, поэтому слова сравниваются по общему началу.
+   Обрезка до пяти букв не годилась дважды: «каждая» и «каждой» расходятся
+   уже на пятой букве и не совпадали, а короткое слово из текста («к», «ка»)
+   совпадало с любым запросом на ту же букву — поиск выдавал мусор.
+   Правильнее считать длину общего начала: окончание в русском обычно
+   не длиннее трёх букв, а слова короче трёх сравниваем целиком. */
+function like(a, b){
+  if(a === b) return true;
+  var n = Math.min(a.length, b.length);
+  if(n < 3) return false;
+  /* min(4,n) — нижний порог, чтобы «каждая» не совпадала с «кажущееся»
+     по трём буквам; n-3 — верхний, чтобы длинные слова расходились только
+     в окончании */
+  var need = Math.max(Math.min(4, n), n - 3), i = 0;
+  while(i < n && a.charCodeAt(i) === b.charCodeAt(i)) i++;
+  return i >= need;
+}
 
 /* ---------- порядок и якоря ---------- */
 function paraOf(id){ return id.split('.').slice(0,-1).join('.'); }
@@ -743,7 +769,10 @@ tb.innerHTML = '<span class="anc"></span>' +
   + '\u2026+ <kbd>-</kbd></button>' +
   '<button data-t="К">К <kbd>1</kbd></button>' +
   '<button data-t="?">? <kbd>2</kbd></button>' +
-  '<button data-t="М">М <span class="trg"></span><kbd>3</kbd></button>';
+  '<button data-t="М">М <span class="trg"></span><kbd>3</kbd></button>' +
+  '<button class="mark" data-mark="1" '
+  + 'title="Выделить в тексте — сохранится в этом браузере">'
+  + '<i></i> <kbd>4</kbd></button>';
 document.body.appendChild(tb);
 var acc = document.createElement('div'); acc.id = 'acc';
 document.body.appendChild(acc);
@@ -951,6 +980,7 @@ function clearRaw(){
    Поэтому пересчитываем их на каждое такое событие. */
 function redrawRaw(){
   if(lastDraw) drawRaw(lastDraw.r, lastDraw.l);
+  drawSaved();
 }
 addEventListener('resize', redrawRaw);
 addEventListener('load', redrawRaw);
@@ -1122,7 +1152,7 @@ function anchors(type){
 /* Смещения кусков внутри якоря — чтобы по ссылке их подсветить.
    Не номера слов: слова нумеровать не нужно, символьных смещений
    достаточно, а адрес остаётся коротким. */
-function offsetsFor(list, fr){
+function offsetsFor(list, fr, always){
   if(!fr || !fr.length || !list.length) return '';
   var out = [];
   for(var i = 0; i < fr.length; i++){
@@ -1131,7 +1161,7 @@ function offsetsFor(list, fr){
     if(a >= 0 && b > a) out.push(a + '-' + b);
   }
   /* весь охват целиком — подсвечивать нечего */
-  if(out.length === 1){
+  if(!always && out.length === 1){
     var p = out[0].split('-');
     var total = list.map(function(e){
       return textNodes(e).map(function(n){ return n.nodeValue.length; })
@@ -1204,6 +1234,93 @@ function emit(type){
     if(bag.length){ bag = []; save(KACC, bag); drawAcc(); }
     getSelection().removeAllRanges(); reset();
   });
+}
+
+/* ---------- сохранённые выделения ----------
+   Просто пометки в тексте, как маркером на бумаге: живут в браузере
+   у каждого свои, как метки, и никуда не отправляются. */
+var KHL = 'br.hl.' + BOOK;
+var saved = ls(KHL, []);
+
+function savedRanges(){
+  var out = [];
+  saved.forEach(function(x, i){
+    var sp = resolve(x.a);
+    if(!sp.length) return;
+    (x.f || '').replace('?f=', '').split(',').forEach(function(pair){
+      var ab = pair.split('-');
+      var r = rangeAt(sp, +ab[0], +ab[1]);
+      if(r){ r.__i = i; out.push(r); }
+    });
+  });
+  return out;
+}
+
+function clearSaved(){
+  var old = document.querySelectorAll('.hlmark');
+  for(var i = 0; i < old.length; i++) old[i].remove();
+}
+
+function drawSaved(){
+  clearSaved();
+  var rs = savedRanges(), rects = [];
+  for(var k = 0; k < rs.length; k++){
+    var rr = rs[k].getClientRects();
+    for(var m = 0; m < rr.length; m++)
+      rects.push({left: rr[m].left, top: rr[m].top, right: rr[m].right,
+                  bottom: rr[m].bottom, width: rr[m].width,
+                  height: rr[m].height, soft: false});
+  }
+  rects = mergeRects(rects);
+  if(rects.length > 600) return;
+  for(var i = 0; i < rects.length; i++){
+    var r = rects[i];
+    if(r.width < 1 || r.height < 1) continue;
+    var d = document.createElement('div');
+    d.className = 'hlmark';
+    d.style.left = (r.left + scrollX) + 'px';
+    d.style.top = (r.top + scrollY) + 'px';
+    d.style.width = r.width + 'px';
+    d.style.height = r.height + 'px';
+    document.body.appendChild(d);
+  }
+}
+
+/* Одна кнопка и добавляет, и снимает: если выделение задевает уже
+   отмеченное — снимаем его, иначе отмечаем новое. */
+function toggleSaved(){
+  /* Только текущее выделение. Маркер и куски цитаты — разные вещи: маркер
+     помечает место в книге для себя, куски собирают цитату для заметки.
+     Раньше маркер брал allFrags() и утаскивал с собой уже закреплённые
+     куски, а повторное нажатие их снимало. */
+  var fr = frags;
+  if(!fr.length) return;
+  var have = savedRanges(), drop = {};
+  for(var i = 0; i < have.length; i++)
+    for(var j = 0; j < fr.length; j++)
+      if(have[i].compareBoundaryPoints(Range.END_TO_START, fr[j]) < 0 &&
+         have[i].compareBoundaryPoints(Range.START_TO_END, fr[j]) > 0)
+        drop[have[i].__i] = 1;
+
+  var keys = Object.keys(drop);
+  if(keys.length){
+    saved = saved.filter(function(x, i){ return !drop[i]; });
+    toast('Выделение снято');
+  } else {
+    var sp = spanOf(fr);
+    if(!sp.length) return;
+    saved.push({a: anchorFor(sp), f: offsetsFor(sp, fr, true)});
+    toast('Выделено — сохранится в этом браузере');
+  }
+  save(KHL, saved);
+  drawSaved();
+  /* закреплённые куски не трогаем — сборка цитаты продолжается */
+  getSelection().removeAllRanges();
+  tb.classList.remove('on');
+  cur = []; frags = []; lastRaw = '';
+  markPick([]); peek([]);
+  drawRaw(kept, []);
+  drawAcc();
 }
 
 /* ---------- накопитель ---------- */
@@ -1388,6 +1505,7 @@ drawAcc();
 
 tb.addEventListener('mousedown', function(e){ e.preventDefault(); });
 tb.addEventListener('click', function(e){
+  if(e.target.closest('[data-mark]')){ toggleSaved(); return; }
   if(e.target.closest('[data-join]')){ joinFrags(); return; }
   if(e.target.closest('[data-add]')){ addToBag(); return; }
   var b = e.target.closest('button[data-t]');
@@ -1533,11 +1651,15 @@ function typing(){
 var KEY = { '1':'К','k':'К','к':'К', '2':'?','?':'?', '3':'М','m':'М','м':'М' };
 var ADD = { '+':1, '=':1, '0':1 };
 var JOIN = { '-':1, '_':1 };   /* один символ в обеих раскладках */
+var MARK = { '4':1 };
 addEventListener('keydown', function(e){
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   if(typing()) return;
   if(ADD[e.key] && cur.length){ e.preventDefault(); addToBag(); return; }
   if(JOIN[e.key] && frags.length){ e.preventDefault(); joinFrags(); return; }
+  if(MARK[e.key] && frags.length){
+    e.preventDefault(); toggleSaved(); return;
+  }
   var t = KEY[e.key.toLowerCase()];
   /* kept тоже считается: после закрепления последнего куска выделения нет,
      но цитата есть — и кнопки внизу работают, а клавиши не работали */
@@ -1738,7 +1860,17 @@ function find(query){
   for(var i=0;i<IDX.length;i++){
     var sw = IDX[i][1].split(' '), k = 0, first = -1, last = -1;
     for(var j=0;j<sw.length && k<ws.length;j++){
-      if(like(ws[k], sw[j])){ if(first<0) first=j; last=j; k++; }
+      /* Последнее слово запроса человек ещё дописывает, поэтому оно
+         сравнивается ещё и как начало слова. Без этого «каждой ре» не
+         находило ничего, а «каждой рев» находило: двухбуквенное слово
+         под правило совпадения основ не подходит. */
+      var lastWord = (k === ws.length - 1);
+      /* одна буква в конце годится, если слово в запросе не единственное:
+         «каждой р» уже достаточно сужено предыдущим словом */
+      var hit = like(ws[k], sw[j])
+             || (lastWord && (ws.length > 1 || ws[k].length >= 2)
+                 && sw[j].indexOf(ws[k]) === 0);
+      if(hit){ if(first<0) first=j; last=j; k++; }
     }
     if(k < ws.length) continue;
     out.push([ (last-first+1)/ws.length, first, IDX[i][0] ]);
@@ -1795,9 +1927,19 @@ function byNumber(v){
   return out;
 }
 
+var qbox = document.getElementById('qbox'), qx = document.getElementById('qx');
+function qState(){ if(qbox) qbox.classList.toggle('filled', !!q.value); }
+qx && qx.addEventListener('click', function(e){
+  e.preventDefault();
+  q.value = ''; qState();
+  res.innerHTML = ''; cnt.textContent = '';
+  q.focus();
+});
+
 var sel = -1, ids = [], hits = [];
 q && q.addEventListener('input', function(){
   var v = q.value.trim();
+  qState();
   sel = -1;
 
   var num = asAnchor(v);
@@ -1819,7 +1961,7 @@ q && q.addEventListener('input', function(){
     return;
   }
 
-  if(v.length < 3){ res.innerHTML=''; cnt.textContent=''; return; }
+  if(v.length < 2){ res.innerHTML=''; cnt.textContent=''; return; }
   hits = [];
   ids = find(v);
   cnt.textContent = ids.length ? ids.length + ' совпад.' : '';
@@ -1853,7 +1995,7 @@ q && q.addEventListener('keydown', function(e){
     e.preventDefault();
     if(items.length) choose(items[sel < 0 ? 0 : sel].dataset.id);
   } else if(e.key === 'Escape'){
-    q.value = ''; res.innerHTML = ''; cnt.textContent = ''; q.blur();
+    q.value = ''; qState(); res.innerHTML = ''; cnt.textContent = ''; q.blur();
   }
 });
 addEventListener('keydown', function(e){
@@ -1877,5 +2019,6 @@ addEventListener('keydown', function(e){
    объявления tagBox: из-за подъёма var переменная была undefined, проверка
    не проходила, и поле метки не пряталось при загрузке. Молча. */
 refreshTags(); tagState(); applyHash_(); fitPlaceholder();
+qState(); drawSaved();
 })();
 </script>
