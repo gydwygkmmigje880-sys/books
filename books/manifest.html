@@ -997,7 +997,10 @@ if(document.fonts && document.fonts.ready)
 function hide(){
   tb.classList.remove('on');
   cur = []; lastRaw = ''; frags = [];
-  markPick([]); clearRaw(); peek([]);
+  markPick([]); peek([]);
+  /* не clearRaw: закреплённые куски остаются и должны остаться видимыми.
+     Снимается только текущее выделение. */
+  drawRaw(kept, []);
   drawAcc();
 }
 
@@ -1329,7 +1332,11 @@ function drawAcc(){
      показывать его ещё и внизу — значит открывать полоску на каждый чих. */
   var fr = kept;
   acc.classList.toggle('on', bag.length > 0 || fr.length > 0);
-  if(!bag.length && !fr.length){ markBag(); return; }
+  if(!bag.length && !fr.length){
+    acc.innerHTML = '';   /* иначе прежние фишки остаются в скрытой полоске */
+    markBag();
+    return;
+  }
 
   var rows = [];
   if(bag.length){
