@@ -2822,6 +2822,42 @@ def img_tag(item):
     return f'<img src="{src}" alt=""{wh} loading="lazy">'
 
 
+def write_shards(reg, out):
+    """
+    Реестр, нарезанный по главам: по файлу на главу, только «номер → текст».
+
+    Нужен смарт-чипам Google Docs: дополнение по наведению на ссылку должно
+    достать одно предложение, а тянуть весь реестр (у Ленина больше мегабайта)
+    ради одной фразы нельзя. Глава — естественная единица: она уже есть в
+    самом якоре, так что файл вычисляется из номера без всякого указателя.
+
+    Нарезка ничего не меняет в разборе: это другой вид уже посчитанного,
+    якоря и заморозка не затрагиваются.
+    """
+    d = Path(out).parent / reg["book"]["id"]
+    d.mkdir(parents=True, exist_ok=True)
+    chap = {c["id"]: c.get("title", "") for c in reg["chapters"]}
+    by = {}
+    for x in reg["sentences"]:
+        by.setdefault(x["chapter"], {})[x["id"]] = x["text"]
+
+    for cid, items in by.items():
+        (d / (cid + ".json")).write_text(json.dumps({
+            "book": reg["book"]["title"],
+            "chapter": chap.get(cid, ""),
+            "s": items,
+        }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+
+    # маленький указатель: по нему видно, какие главы есть и как называются
+    (d / "index.json").write_text(json.dumps({
+        "book": reg["book"]["title"],
+        "authors": reg["book"].get("authors", []),
+        "chapters": [{"id": c["id"], "title": c.get("title", "")}
+                     for c in reg["chapters"] if c.get("title")],
+    }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    return len(by)
+
+
 def write_html(reg, out):
     e = html_mod.escape
     chap = {c["id"]: c for c in reg["chapters"]}
@@ -3178,6 +3214,7 @@ def main():
         reg = build(src, bid, lemmatize=not a.no_lemma,
                     typo_on=a.quotes, front=a.front)
         write_html(reg, outdir / f"{bid}.html")
+        write_shards(reg, outdir / f"{bid}.html")
         reg.pop("_binaries", None)
         (outdir / f"{bid}.json").write_text(
             json.dumps(reg, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -3224,6 +3261,7 @@ def main():
                 typo_on=old["book"].get("quotes", False),
                 front=old["book"].get("front", ""))
             write_html(reg, d / f"{bid}.html")
+            write_shards(reg, d / f"{bid}.html")
             reg.pop("_binaries", None)
             rp.write_text(json.dumps(reg, ensure_ascii=False, indent=1),
                           encoding="utf-8")
