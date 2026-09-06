@@ -569,6 +569,64 @@ READERS = {".fb2": read_fb2, ".epub": read_epub, ".html": read_html,
 #  Сборка реестра
 # ===========================================================================
 
+def split_mixed(reg):
+    """
+    Собственный текст главы, у которой есть подглавы, уносится в подглаву «0».
+
+    Точка в номере означает две вещи: у главы — вложенность, у абзаца —
+    разряд. Пока глава либо со своим текстом, либо с подглавами, это не
+    мешает. Но если и то и другое, номера сталкиваются: у Ленина «4.1.1»
+    означал одновременно первый абзац главы 4.1 и первое предложение абзаца
+    4.1 главы 4 — в собранной странице получались одинаковые идентификаторы,
+    и одно из двух мест становилось недостижимым.
+
+    Перенос делается после разбора: пока идёт глава, ещё неизвестно, будут
+    ли у неё подглавы. Затрагивает только смешанные главы, остальные
+    номера не меняются.
+    """
+    kids = set()
+    for c in reg["chapters"]:
+        if "." in c["id"]:
+            kids.add(c["id"].rsplit(".", 1)[0])
+    own = {p["chapter"] for p in reg["paragraphs"]}
+    mixed = sorted(kids & own)
+    if not mixed:
+        return []
+
+    ren = {}
+    for c in mixed:
+        new = c + ".0"
+        for p in reg["paragraphs"]:
+            if p["chapter"] != c:
+                continue
+            ren[p["id"]] = new + "." + str(p["n"])
+        # подглава без заголовка: в оглавление не попадёт, но номер существует
+        reg["chapters"].append({"id": new, "title": "", "level":
+                                new.count(".") + 1, "refs": [], "fmt": []})
+
+    for p in reg["paragraphs"]:
+        if p["id"] in ren:
+            p["chapter"] += ".0"
+            p["id"] = ren[p["id"]]
+    for x in reg["sentences"]:
+        head = x["id"].rsplit(".", 1)[0]
+        if head in ren:
+            x["para"] = ren[head]
+            x["chapter"] += ".0"
+            x["id"] = ren[head] + "." + str(x["n"])
+    for p in reg["paragraphs"]:
+        p["sentences"] = [p["id"] + "." + str(k + 1)
+                          for k in range(len(p["sentences"]))]
+
+    for coll in ("marks", "images", "tables"):
+        for m in reg.get(coll, []):
+            if m["chapter"] in mixed:
+                m["chapter"] += ".0"
+
+    reg["chapters"].sort(key=lambda c: [int(x) for x in c["id"].split(".")])
+    return mixed
+
+
 def build(path, book_id, lemmatize=True, typo_on=False, front=""):
     path = Path(path)
     reader = READERS.get(path.suffix.lower())
@@ -684,6 +742,8 @@ def build(path, book_id, lemmatize=True, typo_on=False, front=""):
         if fmts:
             rec_p["fmt"] = fmts
         reg["paragraphs"].append(rec_p)
+
+    split_mixed(reg)
 
     reg["chapters"] = [c for c in reg["chapters"]
                        if c["id"] == "0" or
@@ -810,6 +870,13 @@ def check(reg):
                          for x in reg["chapters"])]
     if empty:
         add("WARN", "emptychap", f"Главы без абзацев: {len(empty)}", empty)
+
+    clash = sorted({p_["id"] for p_ in P} & {x["id"] for x in S})
+    if clash:
+        add("ERROR", "clash",
+            f"Номер означает одновременно абзац и предложение: {len(clash)} — "
+            f"в собранной странице получатся одинаковые якоря",
+            clash)
 
     QP = re.compile(r"[«»\u201e\u201c]")
     unbal = []
@@ -2837,6 +2904,16 @@ def write_shards(reg, out):
     d = Path(out).parent / reg["book"]["id"]
     d.mkdir(parents=True, exist_ok=True)
     chap = {c["id"]: c.get("title", "") for c in reg["chapters"]}
+
+    def chapter_name(cid):
+        """У подглавы «.0» своего названия нет — берём у ближайшего предка."""
+        while cid:
+            if chap.get(cid):
+                return chap[cid]
+            if "." not in cid:
+                return ""
+            cid = cid.rsplit(".", 1)[0]
+        return ""
     by = {}
     for x in reg["sentences"]:
         by.setdefault(x["chapter"], {})[x["id"]] = x["text"]
@@ -2844,7 +2921,7 @@ def write_shards(reg, out):
     for cid, items in by.items():
         (d / (cid + ".json")).write_text(json.dumps({
             "book": reg["book"]["title"],
-            "chapter": chap.get(cid, ""),
+            "chapter": chapter_name(cid),
             "s": items,
         }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
 
@@ -2853,7 +2930,7 @@ def write_shards(reg, out):
         "book": reg["book"]["title"],
         "authors": reg["book"].get("authors", []),
         "chapters": [{"id": c["id"], "title": c.get("title", "")}
-                     for c in reg["chapters"] if c.get("title")],
+                     for c in reg["chapters"]],
     }, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     return len(by)
 
