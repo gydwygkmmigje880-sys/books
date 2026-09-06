@@ -2918,6 +2918,14 @@ def write_shards(reg, out):
     for x in reg["sentences"]:
         by.setdefault(x["chapter"], {})[x["id"]] = x["text"]
 
+    # Файлы прошлой сборки надо убрать: если глава исчезла или сменила
+    # номер, её файл остаётся на диске и продолжает отдавать старый текст.
+    # Именно так «#4.1» после переноса в «4.0» ещё отвечал прежним абзацем.
+    keep = {c + ".json" for c in by} | {"index.json"}
+    for f in d.glob("*.json"):
+        if f.name not in keep:
+            f.unlink()
+
     for cid, items in by.items():
         (d / (cid + ".json")).write_text(json.dumps({
             "book": reg["book"]["title"],
