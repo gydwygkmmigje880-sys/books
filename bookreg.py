@@ -93,8 +93,14 @@ def sentenize(text):
     out = []
     for s in parts:
         prev = out[-1].text if out else ""
+        # Кусок, начинающийся со скобки с маленькой буквы, — это пояснение
+        # к предыдущей фразе, а не новая: «…Германии?» (с ее реакционной…).
+        # Заглавная внутри скобки означает самостоятельное замечание, его
+        # не трогаем. Скобка в начале абзаца тоже: там продолжать нечего.
+        tail_paren = re.match(r"^\(\s*[а-яёa-z]", s.text) is not None
         glue = out and (
             NEVER_FINAL.search(prev) or ABBR_PAREN.search(prev)
+            or tail_paren
             or (use_brackets and depth(prev) > 0))
         if glue:
             a = out.pop()
@@ -1054,9 +1060,49 @@ def verify(reg, reg_path, map_out=None):
         Path(map_out).write_text("\n".join(rows), encoding="utf-8")
         print(f"Карта переносов: {moved_n} строк → {map_out}\n")
 
+    # Разводим три разных события, которые раньше сваливались в одно.
+    # «Номер тот же, текст другой» — это правка слова, а не сдвиг: ссылка
+    # ведёт туда же, куда вела. Опасно другое — когда прежний текст нашёлся
+    # под другим номером.
+    rev = {}
+    for k, v in new.items():
+        rev.setdefault(v, k)
+
+    shifted, edited, lost = [], [], []
+    for k, v in old.items():
+        # Сначала проверяем сам номер, и только потом ищем текст в другом
+        # месте. Иначе односложные «Далее.» и «Нет.», встречающиеся дважды,
+        # сопоставляются с первым однофамильцем и выглядят как сдвиг.
+        if new.get(k) == v:
+            continue                      # на месте, текст тот же
+        dst = rev.get(v)
+        if dst == k:
+            continue
+        if dst is not None:
+            shifted.append((k, dst))      # текст уехал под другой номер
+        elif k in new:
+            edited.append(k)              # номер тот же, текст правили
+        else:
+            lost.append(k)                # текста больше нет нигде
+
     gone = [k for k in old if k not in new]
     added = [k for k in new if k not in old]
-    moved = [k for k in old if k in new and old[k] != new[k]]
+    moved = [a for a, b in shifted]
+
+    if not shifted and not lost:
+        print("✓ якоря целы, все ссылки в заметках ведут туда же")
+        if edited:
+            print(f"  Текст правили в {len(edited)} предложениях — на ссылки "
+                  f"это не влияет.")
+            for k in sorted(edited,
+                            key=lambda x: [int(i) for i in x.split(".")])[:5]:
+                print(f"    {k}")
+            if len(edited) > 5:
+                print(f"    …и ещё {len(edited) - 5}")
+        print(f"  Перезаморозьте, чтобы снимок совпал с книгой:")
+        print(f"    rm {lockfile(reg_path)}")
+        print(f"    python3 bookreg.py freeze {reg_path}")
+        return 0
 
     if not gone and not added and not moved:
         # текст правили, но границы предложений не двинулись: опечатка,
